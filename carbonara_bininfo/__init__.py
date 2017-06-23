@@ -16,97 +16,7 @@ import idblib
 import capstone
 import progressbar
 import idb
-
-def populateConfig_idacmd():
-    global config
-    import glob
-    if os.name == 'nt': #Windows
-        #get an array of directories in the ProgramFiles(x86) folder which the name starts with 'IDA'
-        ida_dirs = glob.glob(os.environ["ProgramFiles(x86)"] + "\\IDA*\\")
-        if len(ida_dirs) > 0:
-            for d in ida_dirs:
-                if os.path.isfile(d + "\\ida.exe"):
-                    config["idacmd"] = d + "\\ida.exe"
-                    config["ida64cmd"] = d + "\\ida64.exe"
-                    return
-                elif os.path.isfile(d + "\\idaq.exe"):
-                    config["idacmd"] = d + "\\idaq.exe"
-                    config["ida64cmd"] = d + "\\idaq64.exe"
-                    return
-        #get an array of directories in the ProgramFiles folder which the name starts with 'IDA'
-        ida_dirs = glob.glob(os.environ["ProgramW6432"] + "\\IDA*\\")
-        if len(ida_dirs) > 0:
-            for d in ida_dirs:
-                if os.path.isfile(d + "\\ida.exe"):
-                    config["idacmd"] = d + "\\ida.exe"
-                    config["ida64cmd"] = d + "\\ida64.exe"
-                    return
-                elif os.path.isfile(d + "\\idaq.exe"):
-                    config["idacmd"] = d + "\\idaq.exe"
-                    config["ida64cmd"] = d + "\\idaq64.exe"
-                    return
-    if os.name == "posix": #Linux or macOS, IDA Pro don't run on other posix systems
-        import subprocess
-        
-        #TODO add native macOS and Linux support
-        
-        #get wine full path
-        winepath = subprocess.check_output("type -p wine", shell=True).rstrip()
-        if len(winepath) > 0: #wine is in PATH
-            prefix = "~/.wine"
-            try:
-                prefix = os.environ["WINEPREFIX"]
-            except: pass
-            prefix = os.path.expanduser(prefix) #change ~ to /home/username
-            #get ProgramFiles(x86) from wine
-            program_files = subprocess.check_output("wine cmd /c 'echo %ProgramFiles%'", shell=True).rstrip()
-            if program_files != "":
-                #get an array of directories in the ProgramFiles(x86) folder (relative to posix not wine) which the name starts with 'IDA'
-                ida_dirs = glob.glob(prefix + "/" + program_files[2:].replace("\\", "/") + "/IDA*/")
-                if len(ida_dirs) > 0:
-                    for d in ida_dirs:
-                        if os.path.isfile(d + "/ida.exe"):
-                            config["idacmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida.exe'"
-                            config["ida64cmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida64.exe'"
-                            return
-                        elif os.path.isfile(d + "/idaq.exe"):
-                            config["idacmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq.exe'"
-                            config["ida64cmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq64.exe'"
-                            return
-            #get ProgramFiles from wine
-            program_files = subprocess.check_output("wine cmd /c 'echo %ProgramW6432%'", shell=True).rstrip()
-            if program_files != "":
-                #get an array of directories in the ProgramFiles folder (relative to posix not wine) wich the name starts with 'IDA'
-                ida_dirs = glob.glob(prefix + "/" + program_files[2:].replace("\\", "/") + "/IDA*/")
-                if len(ida_dirs) > 0:
-                    for d in ida_dirs:
-                        if os.path.isfile(d + "/ida.exe"):
-                            config["idacmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida.exe'"
-                            config["ida64cmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida64.exe'"
-                            return
-                        elif os.path.isfile(d + "/idaq.exe"):
-                            config["idacmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq.exe'"
-                            config["ida64cmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq64.exe'"
-                            return
-    #IDA pro not found
-    config["idacmd"] = None
-    config["ida64cmd"] = None
-
-def populateConfig():
-    populateConfig_idacmd()
-
-#read config file
-try:
-    config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"))
-    config = json.load(config_file)
-    config_file.close()
-except IOError:
-    config = {}
-    populateConfig()
-    config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"), "w")
-    json.dump(config, config_file)
-    config_file.close()
-
+import config
 
 class BinaryInfo(object):
     def __init__(self, filename):
@@ -142,7 +52,8 @@ class BinaryInfo(object):
         self.data["entropy"] = self.r2.cmdj('p=ej')
 
     def __del__(self):
-        self.r2.quit()
+        if "r2" in self.__dict__:
+            self.r2.quit()
 
     def addProc(self, name, asm, raw, ops, offset, callconv, apicalls):
         '''

@@ -22,7 +22,8 @@ import os
 import sys
 import time
 import json
-import fcntl
+if os.name == "posix":
+    import fcntl
 from subprocess import Popen, PIPE
 
 class open:
@@ -46,11 +47,14 @@ class open:
             raise Exception("ERROR: Cannot find radare2 in PATH")
         self.process.stdout.read(1) # Reads initial \x00
         # make it non-blocking to speedup reading
-        self.nonblocking = True
-        if self.nonblocking:
-            fd = self.process.stdout.fileno()
-            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        if os.name == "posix":
+            self.nonblocking = True
+            if self.nonblocking:
+                fd = self.process.stdout.fileno()
+                fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+                fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        else:
+            self.nonblocking = False
 
     def _cmd(self, cmd):
         cmd = cmd.strip().replace("\n", ";")
