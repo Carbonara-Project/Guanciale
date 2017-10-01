@@ -4,15 +4,18 @@ import base64
 import our_r2pipe
 import hashlib
 
-class Function(object):
-    def __init__(self, asm, raw, offset):
+class Procedure(object):
+    def __init__(self, asm, raw, ops, offset):
         self.data = {
             "asm": asm,
             "offset": offset
         }
+        hash_object = hashlib.sha256(ops)
+        hex_dig = hash_object.hexdigest()
+        self.data["hash1"] = hash_object.hexdigest()
         hash_object = hashlib.sha256(raw)
         hex_dig = hash_object.hexdigest()
-        self.data["hash"] = hash_object.hexdigest()
+        self.data["hash2"] = hash_object.hexdigest()
         self.data["raw"] = base64.b64encode(raw)
     
     def toJson(self):
@@ -25,20 +28,19 @@ class Function(object):
 class BinaryInfo(object):
     def __init__(self, filename):
         self.data = {
-            "funcs": {},
+            "procs": {},
             "strings": [],
             "r2info": {}
         }
         self.r2 = our_r2pipe.open(filename)
-        self.r2.cmd('aa')
         info = self.r2.cmdj('ij')
         self.data["r2info"] = info["bin"]
 
     def __del__(self):
         self.r2.quit()
 
-    def addFunc(self, name, func):
-        self.data["funcs"][name] = func
+    def addProc(self, name, proc):
+        self.data["procs"][name] = proc
     
     def addString(self, string):
         self.data["strings"].append(string)
@@ -54,6 +56,7 @@ class BinaryInfo(object):
         pass
     
     def generateInfo(self):
+        self.r2.cmd('aa')
         self.data["strings"] = self.r2.cmdj('izzj')
         funcs_dict = self.r2.cmdj('aflj')
         l = len("sym.imp")
@@ -61,14 +64,24 @@ class BinaryInfo(object):
             if len(func["name"]) >= l and func["name"][:l] == "sym.imp":
                 continue
             offset = func["offset"]
-            asm = self.r2.cmd('pdf @ ' + func["name"])
+            asmj = self.r2.cmdj('pdfj @ ' + func["name"])
             raw = self.r2.cmd('prf @ ' + func["name"])
-            self.addFunc(func["name"], Function(asm, raw, offset))
+            
+            asm = ""
+            ops = ""
+            for instr in asmj["ops"]:
+                ops += instr["bytes"][:2]
+                if "comment" in instr:
+                    asm += instr["opcode"] + "  ; " + instr["comment"] + "\n"
+                else:
+                    asm += instr["opcode"] + "\n"
+            
+            self.addProc(func["name"], Procedure(asm, raw, ops.decode("hex"), offset))
 
 
 class _JsonEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, BinaryInfo) or isinstance(obj, Function): 
+        if isinstance(obj, BinaryInfo) or isinstance(obj, Procedure): 
             return obj.data
         return json.JSONEncoder.default(self, obj)
 
@@ -78,5 +91,5 @@ if __name__ == "__main__":
     bi = BinaryInfo(sys.argv[1])
     bi.generateInfo()
     j = bi.toJson()
-    #print j
+    print j
     
