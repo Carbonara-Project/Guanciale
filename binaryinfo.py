@@ -72,7 +72,7 @@ class BinaryInfo(object):
             for instr in asmj["ops"]:
                 ops += instr["bytes"][:2]
                 if "comment" in instr:
-                    asm += instr["opcode"] + "  ; " + instr["comment"] + "\n"
+                    asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
                 else:
                     asm += instr["opcode"] + "\n"
             
