@@ -3,6 +3,10 @@ import json
 import base64
 import our_r2pipe
 import hashlib
+import idb
+import binascii
+import idblib
+import struct
 
 class Procedure(object):
     def __init__(self, asm, raw, ops, offset):
@@ -14,7 +18,7 @@ class Procedure(object):
         :param str ops: List of first bytes of each instruction
         :param integer offset: The offset of function from the binary base address
         '''
-        
+
         self.data = {
             "asm": asm,
             "offset": offset
@@ -27,9 +31,9 @@ class Procedure(object):
         hash_object = hashlib.sha256(raw)
         hex_dig = hash_object.hexdigest()
         self.data["hash2"] = hash_object.hexdigest()
-        #convert the function code to base64 
+        #convert the function code to base64
         self.data["raw"] = base64.b64encode(raw)
-    
+
     def toJson(self):
         return json.dumps(self.data, ensure_ascii=True, indent=4, cls=_JsonEncoder)
 
@@ -44,12 +48,13 @@ class BinaryInfo(object):
 
         :param str filename: The filename of target binary
         '''
-        
+
         self.data = {
             "procs": {},
             "strings": [],
             "r2info": {}
         }
+
         #open radare2 as subprocess
         self.r2 = our_r2pipe.open(filename)
         #r2 cmd ij : get info about binary in json
@@ -61,30 +66,67 @@ class BinaryInfo(object):
 
     def addProc(self, name, proc):
         self.data["procs"][name] = proc
-    
+
     def addString(self, string):
         self.data["strings"].append(string)
-    
+
     def toJson(self):
         return json.dumps(self.data, ensure_ascii=True, indent=4, cls=_JsonEncoder)
-    
+
     def __str__(self):
         return self.toJson()
-    
+
     def fromIdb(self, filename):
         '''
         Get information about binary stored in a IDA database
 
         :param str filename: The filename of the associated IDA database
         '''
-        #...
-        pass
-    
+
+        #open database from filename
+        fhandle = open(filename, 'r')
+        idbfile = idblib.IDBFile(fhandle)
+        id0 = idblib.ID0File(idbfile, idbfile.getpart(0))
+
+        #get architecture info
+        root = id0.nodeByName("Root Node")
+        params = id0.bytes(root, 'S', 0x41b994)
+        magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
+        cpu = self.strz(cpu, 0)
+        fhandle.close()
+
+        with idb.from_file(filename) as db:
+            api = idb.IDAPython(db)
+            #iterate for each function
+            for ea in api.idautils.Functions():
+                #get function name
+                name = api.idc.GetFunctionName(ea)
+                address = ea
+                asm = ''
+                while True:
+                    try:
+                        #get assembly from function
+                        op = api.idc._dissassemble(address)
+                        asm += op.mnemonic+' '+op.op_str+'\n'
+
+                        address += api.idc.ItemSize(address)
+                    except:
+                        break
+                #get raw bytes from function
+                raw = api.idc.GetManyBytes(ea, address-ea)
+                if len(raw) > 0:
+                    #get the first byte of the function in hex; ugly to see but works well
+                    byte_hex = hex(ord(raw[0]))[2:][:2]
+                    self.addProc(name, Procedure(asm, raw, byte_hex, address))
+
+
+
+
     def generateInfo(self):
         '''
         Grab basic informations about the binary from r2
         '''
-        
+
         #r2 cmd aa : analyze all
         self.r2.cmd('aa')
         #r2 cmd izzj : get strings contained in the binary in json
@@ -101,7 +143,7 @@ class BinaryInfo(object):
             asmj = self.r2.cmdj('pdfj @ ' + func["name"])
             #r2 cmd prf : get bytes of a function
             raw = self.r2.cmd('prf @ ' + func["name"])
-            
+
             asm = ""
             ops = ""
             for instr in asmj["ops"]:
@@ -110,13 +152,13 @@ class BinaryInfo(object):
                     asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
                 else:
                     asm += instr["opcode"] + "\n"
-            
+
             self.addProc(func["name"], Procedure(asm, raw, ops.decode("hex"), offset))
 
 
 class _JsonEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, BinaryInfo) or isinstance(obj, Procedure): 
+        if isinstance(obj, BinaryInfo) or isinstance(obj, Procedure):
             return obj.data
         return json.JSONEncoder.default(self, obj)
 
@@ -127,4 +169,4 @@ if __name__ == "__main__":
     bi.generateInfo()
     j = bi.toJson()
     print j
-    
+
