@@ -1,2 +1,3 @@
-# Client-CLI
-CLI client per il progetto di reti
+# Carbonara-CLI
+
+CLI client for Carbonara

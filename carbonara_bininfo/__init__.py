@@ -2,7 +2,7 @@
 
 import json
 import base64
-import our_r2pipe
+import r2pipe
 import hashlib
 import idb
 import progressbar
@@ -56,7 +56,7 @@ class BinaryInfo(object):
             "procs": {}
         }
         #open radare2 as subprocess
-        self.r2 = our_r2pipe.open(filename)
+        self.r2 = r2pipe.open(filename)
         #r2 cmd iIj : get info about binary in json
         print "1: getting info about file..."
         self.data["info"] = self.r2.cmdj('iIj')
