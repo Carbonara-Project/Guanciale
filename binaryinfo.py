@@ -8,8 +8,7 @@ import idb
 import binascii
 import idblib
 import struct
-import time
-
+import zlib
 
 class Procedure(object):
     def __init__(self, asm, raw, ops, offset, callconv):
@@ -38,7 +37,7 @@ class Procedure(object):
         self.data["hash2"] = hash_object.hexdigest()
     
     def toJson(self):
-        return json.dumps(self.data, ensure_ascii=True, indent=4, cls=_JsonEncoder)
+        return json.dumps(self.data, ensure_ascii=True, cls=_JsonEncoder)
 
     def __str__(self):
         return self.toJson()
@@ -80,7 +79,7 @@ class BinaryInfo(object):
         self.data["strings"].append(string)
     
     def toJson(self):
-        return json.dumps(self.data, ensure_ascii=True, indent=4, cls=_JsonEncoder)
+        return json.dumps(self.data, ensure_ascii=True, cls=_JsonEncoder)
     
     def __str__(self):
         return self.toJson()
@@ -151,9 +150,6 @@ class BinaryInfo(object):
                 callconv = func["calltype"]
                 #r2 cmd pdfj : get assembly from a function in json
                 asmj = self.r2.cmdj('pdfj @ ' + func["name"])
-                if asmj == None:
-                    print func["name"]
-                    continue
                 #r2 cmd prf : get bytes of a function
                 raw = self.r2.cmd('prfj @ ' + func["name"] + ' | base64')[1:] #strip newline at position 0
                 
@@ -169,10 +165,8 @@ class BinaryInfo(object):
                         asm += instr["opcode"] + "\n"
                 
                 self.addProc(func["name"], Procedure(asm, raw, ops.decode("hex"), offset, callconv))
-                #time.sleep(0.5)
             except:
                 pass
-
 
 class _JsonEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -184,14 +178,19 @@ class _JsonEncoder(json.JSONEncoder):
 if __name__ == "__main__":
     import sys
     import resource
+    import time
     start_time = time.time()
     bi = BinaryInfo(sys.argv[1])
     if len(sys.argv) > 2:
         bi.fromIdb(sys.argv[2])
     else:
         bi.generateInfo()
+    j = bi.toJson()
     outfile = open(sys.argv[1] + ".analisys.json", "w")
-    outfile.write(bi.toJson())
+    outfile.write(j)
+    outfile.close()
+    outfile = open(sys.argv[1] + ".analisys.json.gz", "w")
+    outfile.write(zlib.compress(j))
     outfile.close()
     print
     print "Memory usage: " + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024) + " MB"
