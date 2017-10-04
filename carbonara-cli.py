@@ -10,8 +10,9 @@ def usage():
     print "  carbonara_cli <binary file> <disassembler database>"
     print
 
-if len(sys.argv) == 0:
+if len(sys.argv) < 2:
     usage()
+    exit()
 
 start_time = time.time()
 bi = BinaryInfo(sys.argv[1])
