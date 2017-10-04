@@ -1,4 +1,5 @@
-#import idblib #https://github.com/nlitsme/pyidbutil
+#!/usr/bin/env python
+
 import json
 import base64
 import our_r2pipe
@@ -7,9 +8,11 @@ import idb
 import binascii
 import idblib
 import struct
+import time
+
 
 class Procedure(object):
-    def __init__(self, asm, raw, ops, offset):
+    def __init__(self, asm, raw, ops, offset, callconv):
         '''
         Procedure
 
@@ -18,10 +21,12 @@ class Procedure(object):
         :param str ops: List of first bytes of each instruction
         :param integer offset: The offset of function from the binary base address
         '''
-
+        
         self.data = {
+            "raw": raw,
             "asm": asm,
-            "offset": offset
+            "offset": offset,
+            "callconv": callconv
         }
         #hash of level 1: sha256 of the first bytes of each instruction
         hash_object = hashlib.sha256(ops)
@@ -31,9 +36,7 @@ class Procedure(object):
         hash_object = hashlib.sha256(raw)
         hex_dig = hash_object.hexdigest()
         self.data["hash2"] = hash_object.hexdigest()
-        #convert the function code to base64
-        self.data["raw"] = base64.b64encode(raw)
-
+    
     def toJson(self):
         return json.dumps(self.data, ensure_ascii=True, indent=4, cls=_JsonEncoder)
 
@@ -48,31 +51,37 @@ class BinaryInfo(object):
 
         :param str filename: The filename of target binary
         '''
-
+        
         self.data = {
-            "procs": {},
-            "strings": [],
-            "r2info": {}
+            "procs": {}
         }
-
         #open radare2 as subprocess
         self.r2 = our_r2pipe.open(filename)
-        #r2 cmd ij : get info about binary in json
-        info = self.r2.cmdj('ij')
-        self.data["r2info"] = info["bin"]
+        #r2 cmd iIj : get info about binary in json
+        self.data["info"] = self.r2.cmdj('iIj')
+        #r2 cmd izzj : get strings contained in the binary in json
+        self.data["strings"] = self.r2.cmdj('izzj')["strings"]
+        #r2 cmd ilj : get imported libs in json
+        self.data["libs"] = self.r2.cmdj('ilj')
+        #r2 cmd ilj : get imported functions in json
+        self.data["imports"] = self.r2.cmdj('iij')
+        #r2 cmd ilj : get exported symbols in json
+        self.data["symbols"] = self.r2.cmdj('isj')
+        #r2 cmd p=ej : calculate entropy
+        self.data["entropy"] = self.r2.cmdj('p=ej')
 
     def __del__(self):
         self.r2.quit()
 
     def addProc(self, name, proc):
         self.data["procs"][name] = proc
-
+    
     def addString(self, string):
         self.data["strings"].append(string)
-
+    
     def toJson(self):
         return json.dumps(self.data, ensure_ascii=True, indent=4, cls=_JsonEncoder)
-
+    
     def __str__(self):
         return self.toJson()
 
@@ -117,8 +126,7 @@ class BinaryInfo(object):
                 if len(raw) > 0:
                     #get the first byte of the function in hex; ugly to see but works well
                     byte_hex = hex(ord(raw[0]))[2:][:2]
-                    self.addProc(name, Procedure(asm, raw, byte_hex, address))
-
+                    self.addProc(name, Procedure(asm, raw, byte_hex, address, "cdecl")) #TODO get calling convention
 
 
 
@@ -126,34 +134,44 @@ class BinaryInfo(object):
         '''
         Grab basic informations about the binary from r2
         '''
-
+        
         #r2 cmd aa : analyze all
-        self.r2.cmd('aa')
+        self.r2.cmd("aaa")
         #r2 cmd izzj : get strings contained in the binary in json
         self.data["strings"] = self.r2.cmdj('izzj')
         #r2 cmd aflj : get info about analyzed functions
         funcs_dict = self.r2.cmdj('aflj')
         l = len("sym.imp")
         for func in funcs_dict:
-            #skip library symbols
-            if len(func["name"]) >= l and func["name"][:l] == "sym.imp":
-                continue
-            offset = func["offset"]
-            #r2 cmd pdfj : get assembly from a function in json
-            asmj = self.r2.cmdj('pdfj @ ' + func["name"])
-            #r2 cmd prf : get bytes of a function
-            raw = self.r2.cmd('prf @ ' + func["name"])
-
-            asm = ""
-            ops = ""
-            for instr in asmj["ops"]:
-                ops += instr["bytes"][:2]
-                if "comment" in instr:
-                    asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
-                else:
-                    asm += instr["opcode"] + "\n"
-
-            self.addProc(func["name"], Procedure(asm, raw, ops.decode("hex"), offset))
+            try:
+                #skip library symbols
+                if len(func["name"]) >= l and func["name"][:l] == "sym.imp":
+                    continue
+                offset = func["offset"]
+                callconv = func["calltype"]
+                #r2 cmd pdfj : get assembly from a function in json
+                asmj = self.r2.cmdj('pdfj @ ' + func["name"])
+                if asmj == None:
+                    print func["name"]
+                    continue
+                #r2 cmd prf : get bytes of a function
+                raw = self.r2.cmd('prfj @ ' + func["name"] + ' | base64')[1:] #strip newline at position 0
+                
+                asm = ""
+                ops = ""
+                for instr in asmj["ops"]:
+                    if instr["type"] == "invalid":
+                        continue
+                    ops += instr["bytes"][:2]
+                    if "comment" in instr:
+                        asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
+                    else:
+                        asm += instr["opcode"] + "\n"
+                
+                self.addProc(func["name"], Procedure(asm, raw, ops.decode("hex"), offset, callconv))
+                #time.sleep(0.5)
+            except:
+                pass
 
 
 class _JsonEncoder(json.JSONEncoder):
@@ -165,8 +183,17 @@ class _JsonEncoder(json.JSONEncoder):
 
 if __name__ == "__main__":
     import sys
+    import resource
+    start_time = time.time()
     bi = BinaryInfo(sys.argv[1])
-    bi.generateInfo()
-    j = bi.toJson()
-    print j
+    if len(sys.argv) > 2:
+        bi.fromIdb(sys.argv[2])
+    else:
+        bi.generateInfo()
+    outfile = open(sys.argv[1] + ".analisys.json", "w")
+    outfile.write(bi.toJson())
+    outfile.close()
+    print
+    print "Memory usage: " + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024) + " MB"
+    print "Elapsed time: " + str(time.time() - start_time)
 
