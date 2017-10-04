@@ -5,6 +5,7 @@ import base64
 import our_r2pipe
 import hashlib
 import idb
+import progressbar
 import binascii
 import idblib
 import struct
@@ -51,22 +52,29 @@ class BinaryInfo(object):
         :param str filename: The filename of target binary
         '''
         
+        print "[Retrieving basic info about binary]"
         self.data = {
             "procs": {}
         }
         #open radare2 as subprocess
         self.r2 = our_r2pipe.open(filename)
         #r2 cmd iIj : get info about binary in json
+        print "1: getting info about file..."
         self.data["info"] = self.r2.cmdj('iIj')
         #r2 cmd izzj : get strings contained in the binary in json
+        print "2: getting strings list..."
         self.data["strings"] = self.r2.cmdj('izzj')["strings"]
         #r2 cmd ilj : get imported libs in json
+        print "3: getting imported libraries..."
         self.data["libs"] = self.r2.cmdj('ilj')
         #r2 cmd ilj : get imported functions in json
+        print "4: getting imported procedures names..."
         self.data["imports"] = self.r2.cmdj('iij')
         #r2 cmd ilj : get exported symbols in json
+        print "5: getting exported symbols..."
         self.data["symbols"] = self.r2.cmdj('isj')
         #r2 cmd p=ej : calculate entropy
+        print "6: calculating entropy..."
         self.data["entropy"] = self.r2.cmdj('p=ej')
 
     def __del__(self):
@@ -91,6 +99,7 @@ class BinaryInfo(object):
         :param str filename: The filename of the associated IDA database
         '''
 
+        print "[Retrieving info from IDA db]"
         #open database from filename
         fhandle = open(filename, 'r')
         idbfile = idblib.IDBFile(fhandle)
@@ -134,39 +143,45 @@ class BinaryInfo(object):
         Grab basic informations about the binary from r2
         '''
         
+        print "[Retrieving info about procedures]"
         #r2 cmd aa : analyze all
+        print "1: analyzing all..."
         self.r2.cmd("aaa")
-        #r2 cmd izzj : get strings contained in the binary in json
-        self.data["strings"] = self.r2.cmdj('izzj')
         #r2 cmd aflj : get info about analyzed functions
+        print "2: getting list of analyzed procedures..."
         funcs_dict = self.r2.cmdj('aflj')
         l = len("sym.imp")
-        for func in funcs_dict:
-            try:
-                #skip library symbols
-                if len(func["name"]) >= l and func["name"][:l] == "sym.imp":
-                    continue
-                offset = func["offset"]
-                callconv = func["calltype"]
-                #r2 cmd pdfj : get assembly from a function in json
-                asmj = self.r2.cmdj('pdfj @ ' + func["name"])
-                #r2 cmd prf : get bytes of a function
-                raw = self.r2.cmd('prfj @ ' + func["name"] + ' | base64')[1:] #strip newline at position 0
-                
-                asm = ""
-                ops = ""
-                for instr in asmj["ops"]:
-                    if instr["type"] == "invalid":
+        print "3: getting assembly and other info about each procedure..."
+        with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
+            count = 0
+            for func in funcs_dict:
+                try:
+                    #skip library symbols
+                    if len(func["name"]) >= l and func["name"][:l] == "sym.imp":
                         continue
-                    ops += instr["bytes"][:2]
-                    if "comment" in instr:
-                        asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
-                    else:
-                        asm += instr["opcode"] + "\n"
-                
-                self.addProc(func["name"], Procedure(asm, raw, ops.decode("hex"), offset, callconv))
-            except:
-                pass
+                    offset = func["offset"]
+                    callconv = func["calltype"]
+                    #r2 cmd pdfj : get assembly from a function in json
+                    asmj = self.r2.cmdj('pdfj @ ' + func["name"])
+                    #r2 cmd prf : get bytes of a function
+                    raw = self.r2.cmd('prfj @ ' + func["name"] + ' | base64')[1:] #strip newline at position 0
+                    
+                    asm = ""
+                    ops = ""
+                    for instr in asmj["ops"]:
+                        if instr["type"] == "invalid":
+                            continue
+                        ops += instr["bytes"][:2]
+                        if "comment" in instr:
+                            asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
+                        else:
+                            asm += instr["opcode"] + "\n"
+                    
+                    self.addProc(func["name"], Procedure(asm, raw, ops.decode("hex"), offset, callconv))
+                except:
+                    pass
+                count += 1
+                bar.update(count)
 
 class _JsonEncoder(json.JSONEncoder):
     def default(self, obj):
