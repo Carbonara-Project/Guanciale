@@ -9,6 +9,7 @@ import progressbar
 import binascii
 import idblib
 import struct
+import os.path
 
 class Procedure(object):
     def __init__(self, asm, raw, ops, offset, callconv):
@@ -63,17 +64,7 @@ class BinaryInfo(object):
         #r2 cmd izzj : get strings contained in the binary in json
         print "2: getting strings list..."
         self.data["strings"] = self.r2.cmdj('izzj')["strings"]
-        #r2 cmd ilj : get imported libs in json
-        print "3: getting imported libraries..."
-        self.data["libs"] = self.r2.cmdj('ilj')
-        #r2 cmd ilj : get imported functions in json
-        print "4: getting imported procedures names..."
-        self.data["imports"] = self.r2.cmdj('iij')
-        #r2 cmd ilj : get exported symbols in json
-        print "5: getting exported symbols..."
-        self.data["symbols"] = self.r2.cmdj('isj')
-        #r2 cmd p=ej : calculate entropy
-        print "6: calculating entropy..."
+        print "3: calculating entropy..."
         self.data["entropy"] = self.r2.cmdj('p=ej')
 
     def __del__(self):
@@ -135,22 +126,26 @@ class BinaryInfo(object):
                     byte_hex = hex(ord(raw[0]))[2:][:2]
                     self.addProc(name, Procedure(asm, raw, byte_hex, address, "cdecl")) #TODO get calling convention
 
-
-
-    def generateInfo(self):
+    def _r2Process(self):
         '''
-        Grab basic informations about the binary from r2
+        Get info from the radare2 process
         '''
         
-        print "[Retrieving info about procedures]"
-        #r2 cmd aa : analyze all
-        print "1: analyzing all..."
-        self.r2.cmd("aaa")
+        #r2 cmd ilj : get imported libs in json
+        print "2: getting imported libraries..."
+        self.data["libs"] = self.r2.cmdj('ilj')
+        #r2 cmd ilj : get imported functions in json
+        print "3: getting imported procedures names..."
+        self.data["imports"] = self.r2.cmdj('iij')
+        #r2 cmd ilj : get exported symbols in json
+        print "4: getting exported symbols..."
+        self.data["symbols"] = self.r2.cmdj('isj')
+        #r2 cmd p=ej : calculate entropy
         #r2 cmd aflj : get info about analyzed functions
-        print "2: getting list of analyzed procedures..."
+        print "5: getting list of analyzed procedures..."
         funcs_dict = self.r2.cmdj('aflj')
         l = len("sym.imp")
-        print "3: getting assembly and other info about each procedure..."
+        print "6: getting assembly and other info about each procedure..."
         with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
             count = 0
             for func in funcs_dict:
@@ -182,31 +177,40 @@ class BinaryInfo(object):
                 count += 1
                 bar.update(count)
 
+    def fromR2Project(self, name):
+        '''
+        Get information about binary stored in a radare2 project
+
+        :param str name: The name of the radare2 project or its path
+        '''
+        
+        print "[Retrieving info from radare2 project]"
+        #r2 cmd Po : load project
+        print "1: loading project..."
+        projdir = os.path.dirname(name)
+        projname = os.path.basename(name)
+        if projdir != "":
+            projdir = os.path.expanduser(projdir)
+            self.r2.cmd("e dir.projects=" + projdir)
+        out = self.r2.cmd("Po " + projname)
+        if len(out) >= len("Cannot open project info") and out == "Cannot open project info":
+            raise RuntimeError("cannot load radare2 project " + name)
+        self._r2Process()
+
+    def generateInfo(self):
+        '''
+        Grab basic informations about the binary from r2
+        '''
+        
+        print "[Retrieving info about procedures]"
+        #r2 cmd aa : analyze all
+        print "1: analyzing all..."
+        self.r2.cmd("aaa")
+        self._r2Process()
+
 class _JsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, BinaryInfo) or isinstance(obj, Procedure):
             return obj.data
         return json.JSONEncoder.default(self, obj)
-
-
-if __name__ == "__main__":
-    import sys
-    import resource
-    import time
-    start_time = time.time()
-    bi = BinaryInfo(sys.argv[1])
-    if len(sys.argv) > 2:
-        bi.fromIdb(sys.argv[2])
-    else:
-        bi.generateInfo()
-    j = bi.toJson()
-    outfile = open(sys.argv[1] + ".analisys.json", "w")
-    outfile.write(j)
-    outfile.close()
-    outfile = open(sys.argv[1] + ".analisys.json.gz", "w")
-    outfile.write(zlib.compress(j))
-    outfile.close()
-    print
-    print "Memory usage: " + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024) + " MB"
-    print "Elapsed time: " + str(time.time() - start_time)
 
