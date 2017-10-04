@@ -9,7 +9,6 @@ import progressbar
 import binascii
 import idblib
 import struct
-import zlib
 
 class Procedure(object):
     def __init__(self, asm, raw, ops, offset, callconv):
