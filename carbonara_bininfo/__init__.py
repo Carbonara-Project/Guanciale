@@ -11,37 +11,32 @@ import struct
 import os.path
 import our_r2pipe
 
-class Procedure(object):
-    def __init__(self, asm, raw, ops, offset, callconv):
-        '''
-        Procedure
+def generateProcedure(asm, raw, ops, offset, callconv, apicalls):
+    '''
+    Procedure
 
-        :param str asm: The disassembly with comments
-        :param str raw: The bytes of the function
-        :param str ops: List of first bytes of each instruction
-        :param integer offset: The offset of function from the binary base address
-        '''
-        
-        self.data = {
-            "raw": raw,
-            "asm": asm,
-            "offset": offset,
-            "callconv": callconv
-        }
-        #hash of level 1: sha256 of the first bytes of each instruction
-        hash_object = hashlib.sha256(ops)
-        hex_dig = hash_object.hexdigest()
-        self.data["hash1"] = hash_object.hexdigest()
-        #hash of level 2: sha256 of the entire function code
-        hash_object = hashlib.sha256(raw)
-        hex_dig = hash_object.hexdigest()
-        self.data["hash2"] = hash_object.hexdigest()
+    :param str asm: The disassembly with comments
+    :param str raw: The bytes of the function
+    :param str ops: List of first bytes of each instruction
+    :param integer offset: The offset of function from the binary base address
+    '''
     
-    def toJson(self):
-        return json.dumps(self.data, ensure_ascii=True, cls=_JsonEncoder)
-
-    def __str__(self):
-        return self.toJson()
+    data = {
+        "raw": raw,
+        "asm": asm,
+        "offset": offset,
+        "callconv": callconv,
+        "apicalls": apicalls
+    }
+    #hash of level 1: sha256 of the first bytes of each instruction
+    hash_object = hashlib.sha256(ops)
+    hex_dig = hash_object.hexdigest()
+    data["hash1"] = hash_object.hexdigest()
+    #hash of level 2: sha256 of the entire function code
+    hash_object = hashlib.sha256(raw)
+    hex_dig = hash_object.hexdigest()
+    data["hash2"] = hash_object.hexdigest()
+    return data
 
 
 class BinaryInfo(object):
@@ -86,7 +81,7 @@ class BinaryInfo(object):
         self.data["strings"].append(string)
     
     def toJson(self):
-        return json.dumps(self.data, ensure_ascii=True, cls=_JsonEncoder)
+        return json.dumps(self.data, ensure_ascii=True)
     
     def __str__(self):
         return self.toJson()
@@ -138,7 +133,7 @@ class BinaryInfo(object):
                         byte_hex = hex(ord(raw[0]))[2:][:2]
                         #insert byte_hex in codebytes
                         self.data["codebytes"][byte_hex] = self.data["codebytes"].get(byte_hex, 0) +1
-                        self.addProc(name, Procedure(asm, raw, byte_hex, address, "cdecl")) #TODO get calling convention
+                        self.addProc(name, generateProcedure(asm, raw, byte_hex, address, "cdecl", [])) #TODO get calling convention and api calls
                     count += 1
                     bar.update(count)
                 
@@ -161,14 +156,14 @@ class BinaryInfo(object):
         #r2 cmd aflj : get info about analyzed functions
         print "5: getting list of analyzed procedures..."
         funcs_dict = self.r2.cmdj('aflj')
-        l = len("sym.imp")
+        sym_imp_l = len("sym.imp")
         print "6: getting assembly and other info about each procedure..."
         with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
             count = 0
             for func in funcs_dict:
                 try:
                     #skip library symbols
-                    if len(func["name"]) >= l and func["name"][:l] == "sym.imp":
+                    if len(func["name"]) >= sym_imp_l and func["name"][:sym_imp_l] == "sym.imp":
                         continue
                     offset = func["offset"]
                     callconv = func["calltype"]
@@ -179,6 +174,7 @@ class BinaryInfo(object):
                     
                     asm = ""
                     ops = ""
+                    apicalls = []
                     for instr in asmj["ops"]:
                         if instr["type"] == "invalid":
                             continue
@@ -190,8 +186,15 @@ class BinaryInfo(object):
                             asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
                         else:
                             asm += instr["opcode"] + "\n"
+                        #check if the instruction is of type 'call'
+                        try:
+                            if instr["type"] == "call":
+                                arg = instr["opcode"].split()[-1]
+                                if arg[:sym_imp_l] == "sym.imp":
+                                    apicalls.append(arg[sym_imp_l +1:])
+                        except: pass
                     
-                    self.addProc(func["name"], Procedure(asm, raw, ops.decode("hex"), offset, callconv))
+                    self.addProc(func["name"], generateProcedure(asm, raw, ops.decode("hex"), offset, callconv, apicalls))
                 except:
                     pass
                 count += 1
@@ -228,9 +231,5 @@ class BinaryInfo(object):
         self.r2.cmd("aaa")
         self._r2Process()
 
-class _JsonEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, BinaryInfo) or isinstance(obj, Procedure):
-            return obj.data
-        return json.JSONEncoder.default(self, obj)
+
 
