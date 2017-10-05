@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+__author__ = "Andrea Fioraldi, Luigi Paolo Pileggi"
+__copyright__ = "Copyright 2017, Carbonara Project"
+__license__ = "BSD 2-clause"
+__email__ = "andreafioraldi@gmail.com, willownoises@gmail.com"
+
 import json
 import base64
 import hashlib
@@ -15,12 +20,13 @@ import capstone
 
 def generateProcedure(asm, raw, ops, offset, callconv, apicalls):
     '''
-    Procedure
+    generate a dictionary with the information needed to describe a procedure
 
     :param str asm: The disassembly with comments
     :param str raw: The bytes of the function
     :param str ops: List of first bytes of each instruction
     :param integer offset: The offset of function from the binary base address
+    :param array<string> apicalls: List of external API called in the procedure
     '''
 
     data = {
