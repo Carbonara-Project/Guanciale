@@ -55,6 +55,7 @@ class BinaryInfo(object):
         print "[Retrieving basic info about binary]"
         self.data = {
             "procs": {}
+            "codebytes": {}
         }
         #open radare2 as subprocess
         self.r2 = our_r2pipe.open(filename)
@@ -127,6 +128,8 @@ class BinaryInfo(object):
                     if len(raw) > 0:
                         #get the first byte of the function in hex; ugly to see but works well
                         byte_hex = hex(ord(raw[0]))[2:][:2]
+                        #insert byte_hex in codebytes
+                        self.data["codebytes"][byte_hex] = self.data["codebytes"].get(byte_hex, 0) +1
                         self.addProc(name, Procedure(asm, raw, byte_hex, address, "cdecl")) #TODO get calling convention
                     count += 1
                     bar.update(count)
@@ -172,6 +175,9 @@ class BinaryInfo(object):
                         if instr["type"] == "invalid":
                             continue
                         ops += instr["bytes"][:2]
+                        #insert ops in codebytes
+                        self.data["codebytes"][ops] = self.data["codebytes"].get(ops, 0) +1
+                        #insert comments in disassembly if presents
                         if "comment" in instr:
                             asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
                         else:
