@@ -10,7 +10,7 @@ import idblib
 import struct
 import os.path
 import our_r2pipe
-import binacii
+import binascii
 import capstone
 
 
@@ -143,16 +143,15 @@ class BinaryInfo(object):
         #get architecture info TODO map to capston
         root = id0.nodeByName("Root Node")
         params = id0.bytes(root, 'S', 0x41b994)
-        magic, version, cpu, idpflags, demnames, filetype, coresize,
-            corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
+        magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
         cpu = self.strz(cpu, 0)
         fhandle.close()
 
         with idb.from_file(filename) as db:
             api = idb.IDAPython(db)
-            if namefile[-3:] == 'idb':
+            if filename[-3:] == 'idb':
                 mode = capstone.CS_MODE_32
-            elif namefile[-3:] == 'i64':
+            elif filename[-3:] == 'i64':
                 mode = capstone.CS_MODE_64
             #iterate for each function
             funcs = api.idautils.Functions()
