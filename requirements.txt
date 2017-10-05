@@ -1,3 +1,2 @@
-r2pipe
 python-idb
 progressbar2

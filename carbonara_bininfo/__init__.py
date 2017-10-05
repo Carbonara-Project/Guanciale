@@ -2,7 +2,6 @@
 
 import json
 import base64
-import r2pipe
 import hashlib
 import idb
 import progressbar
@@ -10,6 +9,7 @@ import binascii
 import idblib
 import struct
 import os.path
+import our_r2pipe as r2pipe
 
 class Procedure(object):
     def __init__(self, asm, raw, ops, offset, callconv):
