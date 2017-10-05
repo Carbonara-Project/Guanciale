@@ -10,6 +10,9 @@ import idblib
 import struct
 import os.path
 import our_r2pipe
+import binacii
+import capstone
+
 
 def generateProcedure(asm, raw, ops, offset, callconv, apicalls):
     '''
@@ -46,20 +49,20 @@ class BinaryInfo(object):
 
         :param str filename: The filename of target binary
         '''
-        
+
         print "[Retrieving basic info about binary]"
         #open the binary file and compute sha256 hash
         binfile = open(filename, "rb")
         hash_object = hashlib.sha256(binfile.read())
         hex_dig = hash_object.hexdigest()
         binfile.close()
-        
+
         self.data = {
             "sha256": hex_dig,
             "procs": {},
             "codebytes": {}
         }
-        
+
         #open radare2 as subprocess
         self.r2 = our_r2pipe.open(filename)
         #r2 cmd iIj : get info about binary in json
@@ -76,15 +79,53 @@ class BinaryInfo(object):
 
     def addProc(self, name, proc):
         self.data["procs"][name] = proc
-    
+
     def addString(self, string):
         self.data["strings"].append(string)
-    
+
     def toJson(self):
         return json.dumps(self.data, ensure_ascii=True)
-    
+
     def __str__(self):
         return self.toJson()
+
+    def strz(self, b, o):
+        return b[o:b.find(b'\x00', o)].decode('utf-8', 'ignore')
+
+    def loadDis(self, api, mode):
+        if api.idc.dis is not None:
+            return
+
+        # WARNING:
+        # TODO: map IDA arch to capstone's to add support other than x86
+        api.idc.dis = capstone.Cs(capstone.CS_ARCH_X86, mode)
+        # required to fetch operand values
+        api.idc.dis.detail = True
+
+    def disassemble(api, ea, mode):
+        size = api.idc.ItemSize(ea)
+        buf = api.idc.GetManyBytes(ea, size)
+        loadDis(api, mode)
+        try:
+            op = next(api.idc.dis.disasm_lite(buf, size))
+        except StopIteration:
+            raise RuntimeError('failed to disassemble %s' % (hex(ea)))
+        else:
+            return op
+
+    def getAsm(self, api, address, mode):
+        asm = ''
+        flags = api.idc.GetFlags(address)
+        if api.ida_bytes.isCode(flags):
+            op = disassemble(api, address, mode)
+            asm = hex(address)+' '+op[2]+' '+op[3]
+            #also get comment if possible
+            try:
+                cmt = api.ida_bytes.get_cmt(address, True).replace('\n', ' ')
+                asm += '   ;'+cmt
+            except:
+                pass
+        return asm+'\n'
 
     def fromIdb(self, filename):
         '''
@@ -99,15 +140,20 @@ class BinaryInfo(object):
         idbfile = idblib.IDBFile(fhandle)
         id0 = idblib.ID0File(idbfile, idbfile.getpart(0))
 
-        #get architecture info
+        #get architecture info TODO map to capston
         root = id0.nodeByName("Root Node")
         params = id0.bytes(root, 'S', 0x41b994)
-        magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
+        magic, version, cpu, idpflags, demnames, filetype, coresize,
+            corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
         cpu = self.strz(cpu, 0)
         fhandle.close()
 
         with idb.from_file(filename) as db:
             api = idb.IDAPython(db)
+            if namefile[-3:] == 'idb':
+                mode = capstone.CS_MODE_32
+            elif namefile[-3:] == 'i64':
+                mode = capstone.CS_MODE_64
             #iterate for each function
             funcs = api.idautils.Functions()
             with progressbar.ProgressBar(max_value=len(funcs)) as bar:
@@ -117,12 +163,10 @@ class BinaryInfo(object):
                     name = api.idc.GetFunctionName(ea)
                     address = ea
                     asm = ''
+                    #get assembly and comments from procedure
                     while True:
                         try:
-                            #get assembly from function
-                            op = api.idc._dissassemble(address)
-                            asm += op.mnemonic+' '+op.op_str+'\n'
-
+                            asm += getAsm(api, address, mode)
                             address += api.idc.ItemSize(address)
                         except:
                             break
@@ -136,13 +180,13 @@ class BinaryInfo(object):
                         self.addProc(name, generateProcedure(asm, raw, byte_hex, address, "cdecl", [])) #TODO get calling convention and api calls
                     count += 1
                     bar.update(count)
-                
+
 
     def _r2Process(self):
         '''
         Get info from the radare2 process
         '''
-        
+
         #r2 cmd ilj : get imported libs in json
         print "2: getting imported libraries..."
         self.data["libs"] = self.r2.cmdj('ilj')
@@ -171,7 +215,7 @@ class BinaryInfo(object):
                     asmj = self.r2.cmdj('pdfj @ ' + func["name"])
                     #r2 cmd prf : get bytes of a function
                     raw = self.r2.cmd('prfj @ ' + func["name"] + ' | base64')[1:] #strip newline at position 0
-                    
+
                     asm = ""
                     ops = ""
                     apicalls = []
@@ -208,7 +252,7 @@ class BinaryInfo(object):
 
         :param str name: The name of the radare2 project or its path
         '''
-        
+
         print "[Retrieving info from radare2 project]"
         #r2 cmd Po : load project
         print "1: loading project..."
@@ -226,7 +270,7 @@ class BinaryInfo(object):
         '''
         Grab basic informations about the binary from r2
         '''
-        
+
         print "[Retrieving info about procedures]"
         #r2 cmd aa : analyze all
         print "1: analyzing all..."
