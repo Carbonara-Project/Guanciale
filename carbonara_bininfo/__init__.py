@@ -192,6 +192,8 @@ class BinaryInfo(object):
                                 arg = instr["opcode"].split()[-1]
                                 if arg[:sym_imp_l] == "sym.imp":
                                     apicalls.append(arg[sym_imp_l +1:])
+                                if arg[:len("sub.")] == "sub.":
+                                    apicalls.append(arg[len("sub."):])
                         except: pass
                     
                     self.addProc(func["name"], generateProcedure(asm, raw, ops.decode("hex"), offset, callconv, apicalls))

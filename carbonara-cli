@@ -1,6 +1,3 @@
 #!/bin/sh
 
-SCRIPT=`realpath -s $0`
-SCRIPTPATH=`dirname '$SCRIPT'`
-
-python $SCRIPTPATH/carbonara-cli.py $@
+python `which carbonara-cli.py` $@
