@@ -9,7 +9,7 @@ import binascii
 import idblib
 import struct
 import os.path
-import our_r2pipe as r2pipe
+import our_r2pipe
 
 class Procedure(object):
     def __init__(self, asm, raw, ops, offset, callconv):
@@ -57,7 +57,7 @@ class BinaryInfo(object):
             "procs": {}
         }
         #open radare2 as subprocess
-        self.r2 = r2pipe.open(filename)
+        self.r2 = our_r2pipe.open(filename)
         #r2 cmd iIj : get info about binary in json
         print "1: getting info about file..."
         self.data["info"] = self.r2.cmdj('iIj')
@@ -105,26 +105,32 @@ class BinaryInfo(object):
         with idb.from_file(filename) as db:
             api = idb.IDAPython(db)
             #iterate for each function
-            for ea in api.idautils.Functions():
-                #get function name
-                name = api.idc.GetFunctionName(ea)
-                address = ea
-                asm = ''
-                while True:
-                    try:
-                        #get assembly from function
-                        op = api.idc._dissassemble(address)
-                        asm += op.mnemonic+' '+op.op_str+'\n'
+            funcs = api.idautils.Functions()
+            with progressbar.ProgressBar(max_value=len(funcs)) as bar:
+                count = 0
+                for ea in funcs:
+                    #get function name
+                    name = api.idc.GetFunctionName(ea)
+                    address = ea
+                    asm = ''
+                    while True:
+                        try:
+                            #get assembly from function
+                            op = api.idc._dissassemble(address)
+                            asm += op.mnemonic+' '+op.op_str+'\n'
 
-                        address += api.idc.ItemSize(address)
-                    except:
-                        break
-                #get raw bytes from function
-                raw = api.idc.GetManyBytes(ea, address-ea)
-                if len(raw) > 0:
-                    #get the first byte of the function in hex; ugly to see but works well
-                    byte_hex = hex(ord(raw[0]))[2:][:2]
-                    self.addProc(name, Procedure(asm, raw, byte_hex, address, "cdecl")) #TODO get calling convention
+                            address += api.idc.ItemSize(address)
+                        except:
+                            break
+                    #get raw bytes from function
+                    raw = api.idc.GetManyBytes(ea, address-ea)
+                    if len(raw) > 0:
+                        #get the first byte of the function in hex; ugly to see but works well
+                        byte_hex = hex(ord(raw[0]))[2:][:2]
+                        self.addProc(name, Procedure(asm, raw, byte_hex, address, "cdecl")) #TODO get calling convention
+                    count += 1
+                    bar.update(count)
+                
 
     def _r2Process(self):
         '''

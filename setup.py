@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from setuptools import setup
 
 with open('README.md') as readme_file:
@@ -15,5 +17,4 @@ setup(
     package_dir={'carbonara_bininfo': 'carbonara_bininfo'},
     packages=['carbonara_bininfo'],
     scripts=['carbonara-cli', 'carbonara-cli.py'],
-    install_requires=["python-idb", "progressbar2"]
 )
