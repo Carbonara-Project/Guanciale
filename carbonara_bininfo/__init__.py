@@ -60,13 +60,13 @@ class BinaryInfo(object):
         hash_object = hashlib.sha256(binfile.read())
         hex_dig = hash_object.hexdigest()
         binfile.close()
-        
+
         self.data = {
             "sha256": hex_dig,
             "procs": {},
             "codebytes": {}
         }
-        
+
         #open radare2 as subprocess
         self.r2 = our_r2pipe.open(filename)
         #r2 cmd iIj : get info about binary in json
@@ -117,6 +117,14 @@ class BinaryInfo(object):
         else:
             return op
 
+    def getAsm(self, api, address, mode):
+        asm = ''
+        flags = api.idc.GetFlags(address)
+        if api.ida_bytes.isCode(flags):
+            op = disassemble(api, address, mode)
+            asm = hex(address)+' '+op[2]+' '+op[3]+'\n'
+        return asm
+
     def fromIdb(self, filename):
         '''
         Get information about binary stored in a IDA database
@@ -130,10 +138,11 @@ class BinaryInfo(object):
         idbfile = idblib.IDBFile(fhandle)
         id0 = idblib.ID0File(idbfile, idbfile.getpart(0))
 
-        #get architecture info
+        #get architecture info TODO map to capston
         root = id0.nodeByName("Root Node")
         params = id0.bytes(root, 'S', 0x41b994)
-        magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
+        magic, version, cpu, idpflags, demnames, filetype, coresize,
+            corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
         cpu = self.strz(cpu, 0)
         fhandle.close()
 
@@ -152,12 +161,10 @@ class BinaryInfo(object):
                     name = api.idc.GetFunctionName(ea)
                     address = ea
                     asm = ''
+                    #get assembly from procedure
                     while True:
                         try:
-                            #get assembly from function
-                            op = api.idc.dissassemble(api, address, mode)
-                            asm += op[2]+' '+op[3]+'\n'
-
+                            asm += getAsm(api, address, mode)
                             address += api.idc.ItemSize(address)
                         except:
                             break

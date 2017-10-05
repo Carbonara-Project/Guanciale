@@ -12,7 +12,7 @@ setup(
     description='CLI interface for Carbonara',
     long_description=readme,
     author='Andrea Fioraldi, Luigi Paolo Pileggi',
-    author_email='andreafioraldi@gmail.com, {LUIGIMAIL}',
+    author_email='andreafioraldi@gmail.com, willownoises@gmail.com',
     url='https://github.com/andreafioraldi/Carbonara-CLI',
     package_dir={'carbonara_bininfo': 'carbonara_bininfo'},
     packages=['carbonara_bininfo'],
