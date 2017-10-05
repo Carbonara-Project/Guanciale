@@ -10,7 +10,6 @@ import idblib
 import struct
 import os.path
 import our_r2pipe
-import binascii
 import capstone
 
 
@@ -92,47 +91,47 @@ class BinaryInfo(object):
     def strz(self, b, o):
         return b[o:b.find(b'\x00', o)].decode('utf-8', 'ignore')
 
-    def loadDis(self, api, mode):
-        if api.idc.dis is not None:
-            return
-
-        # WARNING:
-        # TODO: map IDA arch to capstone's to add support other than x86
-        api.idc.dis = capstone.Cs(capstone.CS_ARCH_X86, mode)
-        # required to fetch operand values
-        api.idc.dis.detail = True
-
-    def disassemble(api, ea, mode):
-        size = api.idc.ItemSize(ea)
-        buf = api.idc.GetManyBytes(ea, size)
-        loadDis(api, mode)
-        try:
-            op = next(api.idc.dis.disasm_lite(buf, size))
-        except StopIteration:
-            raise RuntimeError('failed to disassemble %s' % (hex(ea)))
-        else:
-            return op
-
-    def getAsm(self, api, address, mode):
-        asm = ''
-        flags = api.idc.GetFlags(address)
-        if api.ida_bytes.isCode(flags):
-            op = disassemble(api, address, mode)
-            asm = hex(address)+' '+op[2]+' '+op[3]
-            #also get comment if possible
-            try:
-                cmt = api.ida_bytes.get_cmt(address, True).replace('\n', ' ')
-                asm += '   ;'+cmt
-            except:
-                pass
-        return asm+'\n'
-
     def fromIdb(self, filename):
         '''
         Get information about binary stored in a IDA database
 
         :param str filename: The filename of the associated IDA database
         '''
+
+        def loadDis(api, mode):
+            if api.idc.dis is not None:
+                return
+
+            # WARNING:
+            # TODO: map IDA arch to capstone's to add support other than x86
+            api.idc.dis = capstone.Cs(capstone.CS_ARCH_X86, mode)
+            # required to fetch operand values
+            api.idc.dis.detail = True
+
+        def disassemble(ea, mode):
+            size = api.idc.ItemSize(ea)
+            buf = api.idc.GetManyBytes(ea, size)
+            loadDis(api, mode)
+            try:
+                op = next(api.idc.dis.disasm_lite(buf, size))
+            except StopIteration:
+                raise RuntimeError('failed to disassemble %s' % (hex(ea)))
+            else:
+                return op
+
+        def getAsm(api, address, mode):
+            asm = ''
+            flags = api.idc.GetFlags(address)
+            if api.ida_bytes.isCode(flags):
+                op = disassemble(api, address, mode)
+                asm = hex(address)+' '+op[2]+' '+op[3]
+                #also get comment if possible
+                try:
+                    cmt = api.ida_bytes.get_cmt(address, True).replace('\n', ' ')
+                    asm += '   ;'+cmt
+                except:
+                    pass
+            return asm+'\n'
 
         print "[Retrieving info from IDA db]"
         #open database from filename
