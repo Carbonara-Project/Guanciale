@@ -55,10 +55,18 @@ class BinaryInfo(object):
         '''
 
         print "[Retrieving basic info about binary]"
+        #open the binary file and compute sha256 hash
+        binfile = open(filename, "rb")
+        hash_object = hashlib.sha256(binfile.read())
+        hex_dig = hash_object.hexdigest()
+        binfile.close()
+        
         self.data = {
-            "procs": {}
+            "sha256": hex_dig,
+            "procs": {},
             "codebytes": {}
         }
+        
         #open radare2 as subprocess
         self.r2 = our_r2pipe.open(filename)
         #r2 cmd iIj : get info about binary in json
