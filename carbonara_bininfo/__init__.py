@@ -122,8 +122,14 @@ class BinaryInfo(object):
         flags = api.idc.GetFlags(address)
         if api.ida_bytes.isCode(flags):
             op = disassemble(api, address, mode)
-            asm = hex(address)+' '+op[2]+' '+op[3]+'\n'
-        return asm
+            asm = hex(address)+' '+op[2]+' '+op[3]
+            #also get comment if possible
+            try:
+                cmt = api.ida_bytes.get_cmt(address, True).replace('\n', ' ')
+                asm += '   ;'+cmt
+            except:
+                pass
+        return asm+'\n'
 
     def fromIdb(self, filename):
         '''
@@ -161,7 +167,7 @@ class BinaryInfo(object):
                     name = api.idc.GetFunctionName(ea)
                     address = ea
                     asm = ''
-                    #get assembly from procedure
+                    #get assembly and comments from procedure
                     while True:
                         try:
                             asm += getAsm(api, address, mode)
