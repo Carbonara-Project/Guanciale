@@ -8,7 +8,7 @@ with open('README.md') as readme_file:
 setup(
     name='r2pipe',
     version="1.0alpha",
-    license='MIT',
+    license='BSD 2-clause',
     description='CLI interface for Carbonara',
     long_description=readme,
     author='Andrea Fioraldi, Luigi Paolo Pileggi',
