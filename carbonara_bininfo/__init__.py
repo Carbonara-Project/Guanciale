@@ -22,7 +22,7 @@ def generateProcedure(asm, raw, ops, offset, callconv, apicalls):
     :param str ops: List of first bytes of each instruction
     :param integer offset: The offset of function from the binary base address
     '''
-    
+
     data = {
         "raw": raw,
         "asm": asm,
@@ -134,6 +134,17 @@ class BinaryInfo(object):
             return asm+'\n'
 
         print "[Retrieving info from IDA db]"
+
+        #extract and check file extension
+        file_ext = os.path.splitext(filename)[1]
+        if file_ext == '.idb':
+            mode = capstone.CS_MODE_32
+        elif file_ext == '.i64':
+            mode = capstone.CS_MODE_64
+        else:
+            raise RuntimeError('file not supported')
+            return
+
         #open database from filename
         fhandle = open(filename, 'r')
         idbfile = idblib.IDBFile(fhandle)
@@ -148,10 +159,6 @@ class BinaryInfo(object):
 
         with idb.from_file(filename) as db:
             api = idb.IDAPython(db)
-            if filename[-3:] == 'idb':
-                mode = capstone.CS_MODE_32
-            elif filename[-3:] == 'i64':
-                mode = capstone.CS_MODE_64
             #iterate for each function
             funcs = api.idautils.Functions()
             with progressbar.ProgressBar(max_value=len(funcs)) as bar:
@@ -237,7 +244,7 @@ class BinaryInfo(object):
                                 if arg[:len("sub.")] == "sub.":
                                     apicalls.append(arg[len("sub."):])
                         except: pass
-                    
+
                     self.addProc(func["name"], generateProcedure(asm, raw, ops.decode("hex"), offset, callconv, apicalls))
                 except:
                     pass
