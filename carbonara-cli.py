@@ -6,9 +6,9 @@ __license__ = "BSD 2-clause"
 __email__ = "andreafioraldi@gmail.com, willownoises@gmail.com"
 
 import sys
-import resource
 import time
 import zlib
+import resource
 import argparse
 from carbonara_bininfo import BinaryInfo
 

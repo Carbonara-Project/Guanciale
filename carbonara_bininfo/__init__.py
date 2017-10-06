@@ -8,19 +8,98 @@ __email__ = "andreafioraldi@gmail.com, willownoises@gmail.com"
 import json
 import base64
 import hashlib
-import idb
-import progressbar
 import binascii
-import idblib
 import struct
-import os.path
+import os
 import our_r2pipe
+import idblib
 import capstone
+import progressbar
+import idb
+
+def populateConfig_idapath():
+    import glob
+    if os.name == 'nt':
+        p = glob.glob(os.environ["ProgramFiles(x86)"] + "\\IDA*\\")
+        if len(p) > 0:
+            for d in p:
+                if os.path.isfile(d + "\\ida.exe"):
+                    config["idapath"] = d + "\\ida.exe"
+                    config["idapath64"] = d + "\\ida64.exe"
+                    return
+                elif os.path.isfile(d + "\\idaq.exe"):
+                    config["idapath"] = d + "\\idaq.exe"
+                    config["idapath64"] = d + "\\idaq64.exe"
+                    return
+        p = glob.glob(os.environ["ProgramW6432"] + "\\IDA*\\")
+        if len(p) > 0:
+            for d in p:
+                if os.path.isfile(d + "\\ida.exe"):
+                    config["idapath"] = d + "\\ida.exe"
+                    config["idapath64"] = d + "\\ida64.exe"
+                    return
+                elif os.path.isfile(d + "\\idaq.exe"):
+                    config["idapath"] = d + "\\idaq.exe"
+                    config["idapath64"] = d + "\\idaq64.exe"
+                    return
+    if os.name == "posix":
+        import subprocess
+        output = subprocess.check_output("type -p wine", shell=True)
+        if len(output) > 0: #wine is in PATH
+            prefix = "~/.wine/drive_c"
+            try:
+                prefix = os.environ["WINEPREFIX"]
+            except: pass
+            prefix = os.path.expanduser(prefix)
+            pfd = subprocess.check_output("wine cmd /c 'echo %ProgramFiles%'", shell=True).rstrip()
+            if pfd != "":
+                p = glob.glob(prefix + "/" + pfd[2:].replace("\\", "/") + "/IDA*/")
+                if len(p) > 0:
+                    for d in p:
+                        if os.path.isfile(d + "/ida.exe"):
+                            config["idapath"] = "env WINEPREFIX='" + prefix + "' '" + d + "/ida.exe'"
+                            config["idapath64"] = "env WINEPREFIX='" + prefix + "' '" + d + "/ida64.exe'"
+                            return
+                        elif os.path.isfile(d + "/idaq.exe"):
+                            config["idapath"] = "env WINEPREFIX='" + prefix + "' '" + d + "/idaq.exe'"
+                            config["idapath64"] = "env WINEPREFIX='" + prefix + "' '" + d + "/idaq64.exe'"
+                            return
+            pfd = subprocess.check_output("wine cmd /c 'echo %ProgramW6432%'", shell=True).rstrip()
+            if pfd != "":
+                p = glob.glob(prefix + "/" + pfd[2:].replace("\\", "/") + "/IDA*/")
+                if len(p) > 0:
+                    for d in p:
+                        if os.path.isfile(d + "/ida.exe"):
+                            config["idapath"] = "env WINEPREFIX='" + prefix + "' '" + d + "/ida.exe'"
+                            config["idapath64"] = "env WINEPREFIX='" + prefix + "' '" + d + "/ida64.exe'"
+                            return
+                        elif os.path.isfile(d + "/idaq.exe"):
+                            config["idapath"] = "env WINEPREFIX='" + prefix + "' '" + d + "/idaq.exe'"
+                            config["idapath64"] = "env WINEPREFIX='" + prefix + "' '" + d + "/idaq64.exe'"
+                            return
+        #TODO add native macOS and Linux support
+    config["idapath"] = None
+    config["idapath64"] = None
+
+def populateConfig():
+    populateConfig_idapath()
+
+#read config file
+try:
+    config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"))
+    config = json.load(config_file)
+    config_file.close()
+except IOError:
+    config = {}
+    populateConfig()
+    config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"), "w")
+    json.dump(config, config_file)
+    config_file.close()
 
 
 def generateProcedure(asm, raw, ops, offset, callconv, apicalls):
     '''
-    generate a dictionary with the information needed to describe a procedure
+    generate a dictionary with the informations needed to describe a procedure
 
     :param str asm: The disassembly with comments
     :param str raw: The bytes of the function
@@ -94,15 +173,16 @@ class BinaryInfo(object):
     def __str__(self):
         return self.toJson()
 
-    def strz(self, b, o):
-        return b[o:b.find(b'\x00', o)].decode('utf-8', 'ignore')
-
     def fromIdb(self, filename):
         '''
         Get information about binary stored in a IDA database
 
         :param str filename: The filename of the associated IDA database
         '''
+
+        
+        def strz(b, o):
+            return b[o:b.find(b'\x00', o)].decode('utf-8', 'ignore')
 
         def loadDis(api, mode):
             if api.idc.dis is not None:
@@ -149,7 +229,7 @@ class BinaryInfo(object):
         root = id0.nodeByName("Root Node")
         params = id0.bytes(root, 'S', 0x41b994)
         magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
-        cpu = self.strz(cpu, 0)
+        cpu = strz(cpu, 0)
         fhandle.close()
 
         with idb.from_file(filename) as db:
