@@ -93,7 +93,7 @@ def populateConfig_idacmd():
     config["ida64cmd"] = None
 
 def populateConfig():
-    populateConfig_idapath()
+    populateConfig_idacmd()
 
 #read config file
 try:
@@ -324,9 +324,11 @@ class BinaryInfo(object):
                     for instr in asmj["ops"]:
                         if instr["type"] == "invalid":
                             continue
-                        ops += instr["bytes"][:2]
+                        #get the first byte in hex
+                        first_byte = instr["bytes"][:2]
+                        ops += first_byte
                         #insert ops in codebytes
-                        self.data["codebytes"][ops] = self.data["codebytes"].get(ops, 0) +1
+                        self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
                         #insert comments in disassembly if presents
                         if "comment" in instr:
                             asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
