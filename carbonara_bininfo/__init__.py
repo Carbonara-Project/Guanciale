@@ -17,69 +17,80 @@ import capstone
 import progressbar
 import idb
 
-def populateConfig_idapath():
+def populateConfig_idacmd():
+    global config
     import glob
-    if os.name == 'nt':
-        p = glob.glob(os.environ["ProgramFiles(x86)"] + "\\IDA*\\")
-        if len(p) > 0:
-            for d in p:
+    if os.name == 'nt': #Windows
+        #get an array of directories in the ProgramFiles(x86) folder which the name starts with 'IDA'
+        ida_dirs = glob.glob(os.environ["ProgramFiles(x86)"] + "\\IDA*\\")
+        if len(ida_dirs) > 0:
+            for d in ida_dirs:
                 if os.path.isfile(d + "\\ida.exe"):
-                    config["idapath"] = d + "\\ida.exe"
-                    config["idapath64"] = d + "\\ida64.exe"
+                    config["idacmd"] = d + "\\ida.exe"
+                    config["ida64cmd"] = d + "\\ida64.exe"
                     return
                 elif os.path.isfile(d + "\\idaq.exe"):
-                    config["idapath"] = d + "\\idaq.exe"
-                    config["idapath64"] = d + "\\idaq64.exe"
+                    config["idacmd"] = d + "\\idaq.exe"
+                    config["ida64cmd"] = d + "\\idaq64.exe"
                     return
-        p = glob.glob(os.environ["ProgramW6432"] + "\\IDA*\\")
-        if len(p) > 0:
-            for d in p:
+        #get an array of directories in the ProgramFiles folder which the name starts with 'IDA'
+        ida_dirs = glob.glob(os.environ["ProgramW6432"] + "\\IDA*\\")
+        if len(ida_dirs) > 0:
+            for d in ida_dirs:
                 if os.path.isfile(d + "\\ida.exe"):
-                    config["idapath"] = d + "\\ida.exe"
-                    config["idapath64"] = d + "\\ida64.exe"
+                    config["idacmd"] = d + "\\ida.exe"
+                    config["ida64cmd"] = d + "\\ida64.exe"
                     return
                 elif os.path.isfile(d + "\\idaq.exe"):
-                    config["idapath"] = d + "\\idaq.exe"
-                    config["idapath64"] = d + "\\idaq64.exe"
+                    config["idacmd"] = d + "\\idaq.exe"
+                    config["ida64cmd"] = d + "\\idaq64.exe"
                     return
-    if os.name == "posix":
+    if os.name == "posix": #Linux or macOS, IDA Pro don't run on other posix systems
         import subprocess
-        output = subprocess.check_output("type -p wine", shell=True)
-        if len(output) > 0: #wine is in PATH
-            prefix = "~/.wine/drive_c"
+        
+        #TODO add native macOS and Linux support
+        
+        #get wine full path
+        winepath = subprocess.check_output("type -p wine", shell=True).rstrip()
+        if len(winepath) > 0: #wine is in PATH
+            prefix = "~/.wine"
             try:
                 prefix = os.environ["WINEPREFIX"]
             except: pass
-            prefix = os.path.expanduser(prefix)
-            pfd = subprocess.check_output("wine cmd /c 'echo %ProgramFiles%'", shell=True).rstrip()
-            if pfd != "":
-                p = glob.glob(prefix + "/" + pfd[2:].replace("\\", "/") + "/IDA*/")
-                if len(p) > 0:
-                    for d in p:
+            prefix = os.path.expanduser(prefix) #change ~ to /home/username
+            #get ProgramFiles(x86) from wine
+            program_files = subprocess.check_output("wine cmd /c 'echo %ProgramFiles%'", shell=True).rstrip()
+            if program_files != "":
+                #get an array of directories in the ProgramFiles(x86) folder (relative to posix not wine) which the name starts with 'IDA'
+                ida_dirs = glob.glob(prefix + "/" + program_files[2:].replace("\\", "/") + "/IDA*/")
+                if len(ida_dirs) > 0:
+                    for d in ida_dirs:
                         if os.path.isfile(d + "/ida.exe"):
-                            config["idapath"] = "env WINEPREFIX='" + prefix + "' '" + d + "/ida.exe'"
-                            config["idapath64"] = "env WINEPREFIX='" + prefix + "' '" + d + "/ida64.exe'"
+                            config["idacmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida.exe'"
+                            config["ida64cmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida64.exe'"
                             return
                         elif os.path.isfile(d + "/idaq.exe"):
-                            config["idapath"] = "env WINEPREFIX='" + prefix + "' '" + d + "/idaq.exe'"
-                            config["idapath64"] = "env WINEPREFIX='" + prefix + "' '" + d + "/idaq64.exe'"
+                            config["idacmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq.exe'"
+                            config["ida64cmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq64.exe'"
                             return
-            pfd = subprocess.check_output("wine cmd /c 'echo %ProgramW6432%'", shell=True).rstrip()
-            if pfd != "":
-                p = glob.glob(prefix + "/" + pfd[2:].replace("\\", "/") + "/IDA*/")
-                if len(p) > 0:
-                    for d in p:
+            #get ProgramFiles from wine
+            program_files = subprocess.check_output("wine cmd /c 'echo %ProgramW6432%'", shell=True).rstrip()
+            if program_files != "":
+                #get an array of directories in the ProgramFiles folder (relative to posix not wine) wich the name starts with 'IDA'
+                ida_dirs = glob.glob(prefix + "/" + program_files[2:].replace("\\", "/") + "/IDA*/")
+                if len(ida_dirs) > 0:
+                    for d in ida_dirs:
                         if os.path.isfile(d + "/ida.exe"):
-                            config["idapath"] = "env WINEPREFIX='" + prefix + "' '" + d + "/ida.exe'"
-                            config["idapath64"] = "env WINEPREFIX='" + prefix + "' '" + d + "/ida64.exe'"
+                            config["idacmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida.exe'"
+                            config["ida64cmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida64.exe'"
                             return
                         elif os.path.isfile(d + "/idaq.exe"):
-                            config["idapath"] = "env WINEPREFIX='" + prefix + "' '" + d + "/idaq.exe'"
-                            config["idapath64"] = "env WINEPREFIX='" + prefix + "' '" + d + "/idaq64.exe'"
+                            config["idacmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq.exe'"
+                            config["ida64cmd"] = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq64.exe'"
                             return
-        #TODO add native macOS and Linux support
-    config["idapath"] = None
-    config["idapath64"] = None
+    #IDA pro not found
+    config["idacmd"] = None
+    config["ida64cmd"] = None
 
 def populateConfig():
     populateConfig_idapath()
@@ -95,35 +106,6 @@ except IOError:
     config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"), "w")
     json.dump(config, config_file)
     config_file.close()
-
-
-def generateProcedure(asm, raw, ops, offset, callconv, apicalls):
-    '''
-    generate a dictionary with the informations needed to describe a procedure
-
-    :param str asm: The disassembly with comments
-    :param str raw: The bytes of the function
-    :param str ops: List of first bytes of each instruction
-    :param integer offset: The offset of function from the binary base address
-    :param array<string> apicalls: List of external API called in the procedure
-    '''
-
-    data = {
-        "raw": raw,
-        "asm": asm,
-        "offset": offset,
-        "callconv": callconv,
-        "apicalls": apicalls
-    }
-    #hash of level 1: sha256 of the first bytes of each instruction
-    hash_object = hashlib.sha256(ops)
-    hex_dig = hash_object.hexdigest()
-    data["hash1"] = hash_object.hexdigest()
-    #hash of level 2: sha256 of the entire function code
-    hash_object = hashlib.sha256(raw)
-    hex_dig = hash_object.hexdigest()
-    data["hash2"] = hash_object.hexdigest()
-    return data
 
 
 class BinaryInfo(object):
@@ -142,8 +124,8 @@ class BinaryInfo(object):
         binfile.close()
 
         self.data = {
-            "sha256": hex_dig,
-            "procs": {},
+            "program": { "sha256": hex_dig },
+            "procs": [],
             "codebytes": {}
         }
 
@@ -152,6 +134,7 @@ class BinaryInfo(object):
         #r2 cmd iIj : get info about binary in json
         print "1: getting info about file..."
         self.data["info"] = self.r2.cmdj('iIj')
+        self.data["info"]["program_class"] = self.data["info"]["class"] #needed in the backend
         #r2 cmd izzj : get strings contained in the binary in json
         print "2: getting strings list..."
         self.data["strings"] = self.r2.cmdj('izzj')["strings"]
@@ -161,8 +144,36 @@ class BinaryInfo(object):
     def __del__(self):
         self.r2.quit()
 
-    def addProc(self, name, proc):
-        self.data["procs"][name] = proc
+    def addProc(self, name, asm, raw, ops, offset, callconv, apicalls):
+        '''
+        generate a dictionary with the informations needed to describe a procedure and add it to the procedures list
+
+        :param str name: The procedure name
+        :param str asm: The disassembly with comments
+        :param str raw: The bytes of the function
+        :param str ops: List of first bytes of each instruction
+        :param integer offset: The offset of function from the binary base address
+        :param array<string> apicalls: List of external API called in the procedure
+        '''
+
+        proc = {
+            "name": name,
+            "raw": raw,
+            "asm": asm,
+            "offset": offset,
+            "callconv": callconv,
+            "apicalls": apicalls
+        }
+        #hash of level 1: sha256 of the first bytes of each instruction
+        hash_object = hashlib.sha256(ops)
+        hex_dig = hash_object.hexdigest()
+        proc["hash1"] = hash_object.hexdigest()
+        #hash of level 2: sha256 of the entire function code
+        hash_object = hashlib.sha256(raw)
+        hex_dig = hash_object.hexdigest()
+        proc["hash2"] = hash_object.hexdigest()
+        #add proc to list
+        self.data["procs"].append(proc)
 
     def addString(self, string):
         self.data["strings"].append(string)
@@ -268,7 +279,7 @@ class BinaryInfo(object):
                         byte_hex = hex(ord(raw[0]))[2:][:2]
                         #insert byte_hex in codebytes
                         self.data["codebytes"][byte_hex] = self.data["codebytes"].get(byte_hex, 0) +1
-                        self.addProc(name, generateProcedure(asm, raw, byte_hex, address, "cdecl", [])) #TODO get calling convention and api calls
+                        self.addProc(name, asm, raw, byte_hex, address, "cdecl", []) #TODO get calling convention and api calls
                     count += 1
                     bar.update(count)
 
@@ -331,7 +342,7 @@ class BinaryInfo(object):
                                     apicalls.append(arg[len("sub."):])
                         except: pass
 
-                    self.addProc(func["name"], generateProcedure(asm, raw, ops.decode("hex"), offset, callconv, apicalls))
+                    self.addProc(func["name"], asm, raw, ops.decode("hex"), offset, callconv, apicalls)
                 except:
                     pass
                 count += 1
