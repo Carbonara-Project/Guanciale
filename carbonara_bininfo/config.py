@@ -30,7 +30,15 @@ def populateConfig_idacmd():
         ida_dirs = glob.glob(os.environ["ProgramFiles(x86)"] + "\\IDA*\\")
         if len(ida_dirs) > 0:
             for d in ida_dirs:
-                if os.path.isfile(d + "\\ida.exe"):
+                if os.path.isfile(d + "\\idat.exe"):
+                    idacmd = d + "\\idat.exe"
+                    ida64cmd = d + "\\idat64.exe"
+                    return
+                elif os.path.isfile(d + "\\idaw.exe"):
+                    idacmd = d + "\\idaw.exe"
+                    ida64cmd = d + "\\idaw64.exe"
+                    return
+                elif os.path.isfile(d + "\\ida.exe"):
                     idacmd = d + "\\ida.exe"
                     ida64cmd = d + "\\ida64.exe"
                     return
@@ -42,7 +50,15 @@ def populateConfig_idacmd():
         ida_dirs = glob.glob(os.environ["ProgramW6432"] + "\\IDA*\\")
         if len(ida_dirs) > 0:
             for d in ida_dirs:
-                if os.path.isfile(d + "\\ida.exe"):
+                if os.path.isfile(d + "\\idat.exe"):
+                    idacmd = d + "\\idat.exe"
+                    ida64cmd = d + "\\idat64.exe"
+                    return
+                elif os.path.isfile(d + "\\idaw.exe"):
+                    idacmd = d + "\\idaw.exe"
+                    ida64cmd = d + "\\idaw64.exe"
+                    return
+                elif os.path.isfile(d + "\\ida.exe"):
                     idacmd = d + "\\ida.exe"
                     ida64cmd = d + "\\ida64.exe"
                     return
@@ -70,8 +86,15 @@ def populateConfig_idacmd():
                 ida_dirs = glob.glob(prefix + "/drive_c/" + program_files[2:].replace("\\", "/") + "/IDA*/")
                 if len(ida_dirs) > 0:
                     for d in ida_dirs:
-                        print d
-                        if os.path.isfile(d + "/ida.exe"):
+                        if os.path.isfile(d + "/idat.exe"):
+                            idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idat.exe'"
+                            ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idat64.exe'"
+                            return
+                        elif os.path.isfile(d + "/idaw.exe"):
+                            idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaw.exe'"
+                            ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaw64.exe'"
+                            return
+                        elif os.path.isfile(d + "/ida.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida64.exe'"
                             return
@@ -86,7 +109,15 @@ def populateConfig_idacmd():
                 ida_dirs = glob.glob(prefix + "/drive_c/" + program_files[2:].replace("\\", "/") + "/IDA*/")
                 if len(ida_dirs) > 0:
                     for d in ida_dirs:
-                        if os.path.isfile(d + "/ida.exe"):
+                        if os.path.isfile(d + "/idat.exe"):
+                            idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idat.exe'"
+                            ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idat64.exe'"
+                            return
+                        elif os.path.isfile(d + "/idaw.exe"):
+                            idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaw.exe'"
+                            ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaw64.exe'"
+                            return
+                        elif os.path.isfile(d + "/ida.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida64.exe'"
                             return
