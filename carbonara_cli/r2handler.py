@@ -1,27 +1,10 @@
 #!/usr/bin/env python
 
-"""r2pipe
-
-This module provides an API to interact with the radare2
-commandline interface from Python using a pipe.
-
-Some r2 commands display the information in JSON, that's
-why r2pipe provides `-j` methods to directly parse it
-and return a native Python object.
-
-Example:
-  $ python
-  > import r2pipe
-  > r = r2pipe.open("/bin/ls")
-  > print(r.cmd("pd 10"))
-  > print(r.cmdj("aoj")[0]['size'])
-  > r.quit()
-"""
-
 import os
 import sys
 import time
 import json
+import config
 if os.name == "posix":
     import fcntl
 from subprocess import Popen, PIPE
@@ -39,7 +22,7 @@ class open:
             Returns an object with methods to interact with r2 via commands
         """
 
-        cmd = ["radare2", "-q0", filename]
+        cmd = [config.radare2, "-q0", filename]
         cmd = cmd[:1] + flags + cmd[1:]
         try:
             self.process = Popen(cmd, shell=False, stdin=PIPE, stdout=PIPE, stderr=PIPE)
@@ -115,27 +98,3 @@ class open:
             data = None
         return data
 
-    def syscmd(self, cmd):
-        """Executes a program and returns the output (stdout only)
-        Args:
-            cmd (str): commandline shell command
-        Returns:
-            Returns a string with the output
-        """
-        p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
-        out, err = p.communicate()
-        return out
-
-    def syscmdj(self, cmd):
-        """Executes a program and returns an object representing the parsed JSON of the output
-        Args:
-            cmd (str): commandline shell command
-        Returns:
-            Returns an object constructed by parsing the JSON returned by the command
-        """
-        try:
-            data = json.loads(self.syscmd(cmd))
-        except (ValueError, KeyError, TypeError) as e:
-            sys.stderr.write ("r2pipe.syscmdj.Error %s\n"%(e))
-            data = None
-        return data

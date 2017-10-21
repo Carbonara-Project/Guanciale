@@ -156,7 +156,7 @@ def populate():
     global radare2
     global idacmd
     global ida64cmd
-    print "jj"
+    
     #read config file
     try:
         config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"))

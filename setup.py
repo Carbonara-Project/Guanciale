@@ -6,7 +6,7 @@ with open('README.md') as readme_file:
     readme = readme_file.read()
 
 setup(
-    name='r2pipe',
+    name='carbonara-cli',
     version="1.0alpha",
     license='BSD 2-clause',
     description='CLI interface for Carbonara',
@@ -14,7 +14,7 @@ setup(
     author='Andrea Fioraldi, Luigi Paolo Pileggi',
     author_email='andreafioraldi@gmail.com, willownoises@gmail.com',
     url='https://github.com/andreafioraldi/Carbonara-CLI',
-    package_dir={'carbonara_bininfo': 'carbonara_bininfo'},
-    packages=['carbonara_bininfo'],
-    scripts=['carbonara-cli', 'carbonara-cli.py'],
+    package_dir={'carbonara_cli': 'carbonara_cli'},
+    packages=['carbonara_cli'],
+    scripts=['carbonara_cli.py'],
 )
