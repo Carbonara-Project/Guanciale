@@ -218,6 +218,9 @@ class BinaryInfo(object):
         with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
             count = 0
             for func in funcs_dict:
+                #print
+                #print func["callrefs"]
+                #print
                 try:
                     #skip library symbols
                     if len(func["name"]) >= sym_imp_l and func["name"][:sym_imp_l] == "sym.imp":
@@ -226,8 +229,9 @@ class BinaryInfo(object):
                     callconv = func["calltype"]
                     #r2 cmd pdfj : get assembly from a function in json
                     asmj = self.r2.cmdj('pdfj @ ' + func["name"])
-                    #r2 cmd prf : get bytes of a function
-                    raw = self.r2.cmd('prfj @ ' + func["name"] + ' | base64')[1:] #strip newline at position 0
+                    #r2 cmd p6e : get bytes of a function in base64
+                    self.r2.cmd('s ' + str(func["offset"]))
+                    raw = self.r2.cmd('p6e ' + str(func["size"])).rstrip()
 
                     asm = ""
                     ops = ""
