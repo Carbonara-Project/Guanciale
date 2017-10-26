@@ -17,6 +17,8 @@ import capstone
 import progressbar
 import idb
 import config
+import matching
+import pyvex
 
 class BinaryInfo(object):
     def __init__(self, filename):
@@ -38,24 +40,27 @@ class BinaryInfo(object):
             "procs": [],
             "codebytes": {}
         }
-
+        
         #open radare2 as subprocess
         self.r2 = r2handler.open(filename)
+        
         #r2 cmd iIj : get info about binary in json
         print "1: getting info about file..."
         self.data["info"] = self.r2.cmdj('iIj')
-        self.data["info"]["program_class"] = self.data["info"]["class"] #needed in the backend
+        self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
+        
         #r2 cmd izzj : get strings contained in the binary in json
         print "2: getting strings list..."
         self.data["strings"] = self.r2.cmdj('izzj')["strings"]
+        
         print "3: calculating entropy..."
-        self.data["entropy"] = self.r2.cmdj('p=ej')
+        self.data["entropy"] = self.r2.cmdj('p=ej') #TODO ??? must be rewritten!!! listen ML experts
 
     def __del__(self):
         if "r2" in self.__dict__:
             self.r2.quit()
 
-    def addProc(self, name, asm, raw, ops, offset, callconv, apicalls):
+    def addProc(self, name, asm, raw, ops, offset, callconv, calls, jumps):
         '''
         generate a dictionary with the informations needed to describe a procedure and add it to the procedures list
 
@@ -66,25 +71,8 @@ class BinaryInfo(object):
         :param integer offset: The offset of function from the binary base address
         :param array<string> apicalls: List of external API called in the procedure
         '''
-
-        proc = {
-            "name": name,
-            "raw": raw,
-            "asm": asm,
-            "offset": offset,
-            "callconv": callconv,
-            "apicalls": apicalls
-        }
-        #hash of level 1: sha256 of the first bytes of each instruction
-        hash_object = hashlib.sha256(ops)
-        hex_dig = hash_object.hexdigest()
-        proc["hash1"] = hash_object.hexdigest()
-        #hash of level 2: sha256 of the entire function code
-        hash_object = hashlib.sha256(raw)
-        hex_dig = hash_object.hexdigest()
-        proc["hash2"] = hash_object.hexdigest()
-        #add proc to list
-        self.data["procs"].append(proc)
+        
+        pass #TODO write a modular and extensible addProc using the classes in the matching module
 
     def addString(self, string):
         self.data["strings"].append(string)
@@ -95,107 +83,10 @@ class BinaryInfo(object):
     def __str__(self):
         return self.toJson()
 
-    def fromIdb(self, filename):
-        '''
-        Get information about binary stored in a IDA database
+    def fromIdaDB(self, filename):
+        pass #TODO call ida and parse idb with idapython
 
-        :param str filename: The filename of the associated IDA database
-        '''
-
-        
-        def strz(b, o):
-            return b[o:b.find(b'\x00', o)].decode('utf-8', 'ignore')
-
-        def loadDis(api, mode):
-            if api.idc.dis is not None:
-                return
-
-            # WARNING:
-            # TODO: map IDA arch to capstone's to add support other than x86
-            api.idc.dis = capstone.Cs(capstone.CS_ARCH_X86, mode)
-            # required to fetch operand values
-            api.idc.dis.detail = True
-
-        def disassemble(ea, mode):
-            size = api.idc.ItemSize(ea)
-            buf = api.idc.GetManyBytes(ea, size)
-            loadDis(api, mode)
-            try:
-                op = next(api.idc.dis.disasm_lite(buf, size))
-            except StopIteration:
-                raise RuntimeError('failed to disassemble %s' % (hex(ea)))
-            else:
-                return op
-
-        def getAsm(api, address, mode):
-            asm = ''
-            flags = api.idc.GetFlags(address)
-            if api.ida_bytes.isCode(flags):
-                op = disassemble(api, address, mode)
-                asm = hex(address)+' '+op[2]+' '+op[3]
-                #also get comment if possible
-                try:
-                    cmt = api.ida_bytes.get_cmt(address, True).replace('\n', ' ')
-                    asm += '   ;'+cmt
-                except:
-                    pass
-            return asm+'\n'
-
-        print "[Retrieving info from IDA db]"
-
-        #extract and check file extension
-        file_ext = os.path.splitext(filename)[1]
-        if file_ext == '.idb':
-            mode = capstone.CS_MODE_32
-        elif file_ext == '.i64':
-            mode = capstone.CS_MODE_64
-        else:
-            raise RuntimeError('file not supported')
-            return
-
-        #open database from filename
-        fhandle = open(filename, 'r')
-        idbfile = idblib.IDBFile(fhandle)
-        id0 = idblib.ID0File(idbfile, idbfile.getpart(0))
-
-        #get architecture info TODO map to capstone
-        root = id0.nodeByName("Root Node")
-        params = id0.bytes(root, 'S', 0x41b994)
-        magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
-        cpu = strz(cpu, 0)
-        fhandle.close()
-
-        with idb.from_file(filename) as db:
-            api = idb.IDAPython(db)
-            #iterate for each function
-            funcs = api.idautils.Functions()
-            with progressbar.ProgressBar(max_value=len(funcs)) as bar:
-                count = 0
-                for ea in funcs:
-                    #get function name
-                    name = api.idc.GetFunctionName(ea)
-                    address = ea
-                    asm = ''
-                    #get assembly and comments from procedure
-                    while True:
-                        try:
-                            asm += getAsm(api, address, mode)
-                            address += api.idc.ItemSize(address)
-                        except:
-                            break
-                    #get raw bytes from function
-                    raw = api.idc.GetManyBytes(ea, address-ea)
-                    if len(raw) > 0:
-                        #get the first byte of the function in hex; ugly to see but works well
-                        byte_hex = hex(ord(raw[0]))[2:][:2]
-                        #insert byte_hex in codebytes
-                        self.data["codebytes"][byte_hex] = self.data["codebytes"].get(byte_hex, 0) +1
-                        self.addProc(name, asm, raw, byte_hex, address, "cdecl", []) #TODO get calling convention and api calls
-                    count += 1
-                    bar.update(count)
-
-
-    def _r2Process(self):
+    def _r2Task(self):
         '''
         Get info from the radare2 process
         '''
@@ -203,64 +94,81 @@ class BinaryInfo(object):
         #r2 cmd ilj : get imported libs in json
         print "2: getting imported libraries..."
         self.data["libs"] = self.r2.cmdj('ilj')
+        
         #r2 cmd ilj : get imported functions in json
         print "3: getting imported procedures names..."
         self.data["imports"] = self.r2.cmdj('iij')
+        
         #r2 cmd ilj : get exported symbols in json
         print "4: getting exported symbols..."
         self.data["symbols"] = self.r2.cmdj('isj')
-        #r2 cmd p=ej : calculate entropy
+
         #r2 cmd aflj : get info about analyzed functions
         print "5: getting list of analyzed procedures..."
         funcs_dict = self.r2.cmdj('aflj')
         sym_imp_l = len("sym.imp")
+        
         print "6: getting assembly and other info about each procedure..."
         with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
             count = 0
             for func in funcs_dict:
-                #print
-                #print func["callrefs"]
-                #print
                 try:
                     #skip library symbols
                     if len(func["name"]) >= sym_imp_l and func["name"][:sym_imp_l] == "sym.imp":
                         continue
-                    offset = func["offset"]
-                    callconv = func["calltype"]
+                    
+                    fcn_offset = func["offset"]
+                    fcn_size = func["size"]
+                    fcn_name = func["name"]
+                    fcn_call_conv = func["calltype"]
+                    
                     #r2 cmd pdfj : get assembly from a function in json
-                    asmj = self.r2.cmdj('pdfj @ ' + func["name"])
+                    fcn_instructions = self.r2.cmdj('pdfj @ ' + fcn_name)
+                    
                     #r2 cmd p6e : get bytes of a function in base64
-                    self.r2.cmd('s ' + str(func["offset"]))
-                    raw = self.r2.cmd('p6e ' + str(func["size"])).rstrip()
-
+                    self.r2.cmd('s ' + str(fcn_offset))
+                    fcn_bytes = self.r2.cmd('p6e ' + str(fcn_size)).rstrip()
+                    
                     asm = ""
-                    ops = ""
-                    apicalls = []
-                    for instr in asmj["ops"]:
+                    opcodes_list = ""
+                    
+                    calls_insns = []
+                    jumps_insns = []
+                    
+                    for instr in fcn_instructions["ops"]:
                         if instr["type"] == "invalid":
                             continue
+                        
                         #get the first byte in hex
                         first_byte = instr["bytes"][:2]
-                        ops += first_byte
-                        #insert ops in codebytes
+                        opcodes_list += first_byte
+                        
+                        #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
                         self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
+                        
                         #insert comments in disassembly if presents
                         if "comment" in instr:
                             asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
                         else:
                             asm += instr["opcode"] + "\n"
+                            
                         #check if the instruction is of type 'call'
-                        try:
-                            if instr["type"] == "call":
-                                arg = instr["opcode"].split()[-1]
-                                if arg[:sym_imp_l] == "sym.imp":
-                                    apicalls.append(arg[sym_imp_l +1:])
-                                if arg[:len("sub.")] == "sub.":
-                                    apicalls.append(arg[len("sub."):])
-                        except: pass
-
-                    self.addProc(func["name"], asm, raw, ops.decode("hex"), offset, callconv, apicalls)
-                except:
+                        if instr["type"] == "call":
+                            target_name = instr["opcode"].split()[-1]
+                            if target_name[:sym_imp_l] == "sym.imp":
+                                calls_insns.append(matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True))
+                            elif target_name[:len("sub.")] == "sub.":
+                                calls_insns.append(matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True))
+                            else:
+                                calls_insns.append(matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name))
+                        #check if the instruction is of type 'jump'
+                        elif instr["type"] == "jump":
+                            target = instr["jump"]
+                            jumps_insns.append(matching.JumpInsn(instr["offset"], instr["size"], target, (target < fcn_offset or target >= fcn_offset + fcn_size)))
+                    
+                    self.addProc(fcn_name, asm, fcn_bytes, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, calls_insns, jumps_insns)
+                except Exception as ex:
+                    print ex
                     pass
                 count += 1
                 bar.update(count)
@@ -273,17 +181,21 @@ class BinaryInfo(object):
         '''
 
         print "[Retrieving info from radare2 project]"
-        #r2 cmd Po : load project
-        print "1: loading project..."
+        
+        #set project directory var in radare
         projdir = os.path.dirname(name)
         projname = os.path.basename(name)
         if projdir != "":
             projdir = os.path.expanduser(projdir)
             self.r2.cmd("e dir.projects=" + projdir)
+        
+        #r2 cmd Po : load project
+        print "1: loading project..."
         out = self.r2.cmd("Po " + projname)
         if len(out) >= len("Cannot open project info") and out == "Cannot open project info":
             raise RuntimeError("cannot load radare2 project " + name)
-        self._r2Process()
+        
+        self._r2Task()
 
     def generateInfo(self):
         '''
@@ -291,10 +203,12 @@ class BinaryInfo(object):
         '''
 
         print "[Retrieving info about procedures]"
+        
         #r2 cmd aa : analyze all
         print "1: analyzing all..."
         self.r2.cmd("aaa")
-        self._r2Process()
+        
+        self._r2Task()
 
 
 def main():
