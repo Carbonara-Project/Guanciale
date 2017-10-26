@@ -158,7 +158,7 @@ class BinaryInfo(object):
         idbfile = idblib.IDBFile(fhandle)
         id0 = idblib.ID0File(idbfile, idbfile.getpart(0))
 
-        #get architecture info TODO map to capston
+        #get architecture info TODO map to capstone
         root = id0.nodeByName("Root Node")
         params = id0.bytes(root, 'S', 0x41b994)
         magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt * 2) + "HH", params, 0)
