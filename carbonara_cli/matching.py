@@ -70,15 +70,6 @@ def archFromIda(processor, bits, endian):
     return a(archinfo.Endness.LE)
 
 
-
-class CallInsn(object):
-    def __init__(self, offset, size, fcn_addr, fcn_name, is_api=False):
-        self.offset = offset
-        self.size = size
-        self.fcn_addr = fcn_addr
-        self.fcn_name = fcn_name
-        self.is_api = is_api
-
 class JumpInsn(object):
     def __init__(self, offset, size, addr, jumpout=False):
         self.offset = offset
@@ -86,94 +77,133 @@ class JumpInsn(object):
         self.addr = addr
         self.jumpout = jumpout
 
+class CallInsn(JumpInsn):
+    def __init__(self, offset, size, addr, fcn_name, is_api=False):
+        JumpInsn.__init__(self, offset, size, addr, True)
+        self.fcn_name = fcn_name
+        self.is_api = is_api
 
-class AbstractProcedure(object):
-    def __init__(code, offset, calls_insns, jumps_insns, arch):
+
+class ProcedureHandler(object):
+    def __init__(code, offset, calls_insns, jumps_insns, bb_ends, arch):
         self.code = code
         self.offset = offset
         self.endaddr = offset + len(code)
         self.calls_insns = calls_insns
         self.jumps_insns = jumps_insns
         self.arch = arch
-    
-    def lift_helper(self, irsb):
-        stmts = irsb.statements
         
-        for i in xrange(len(stmts)):
-            #TODO PutI GetI Exit
+        self.bb = [0]
+        for instr in bb_ends:
+            if instr.jumpout:
+                #if jump out continue with the next instruction
+                next = instr.offset + instr.size
+                if next < self.endaddr and next not in self.bb:
+                    self.bb.append(next - offset)
+            else:
+                if instr.addr not in self.bb:
+                    self.bb.append(instr.addr - offset)
+                next = instr.offset + instr.size
+                if next < self.endaddr and next not in self.bb:
+                    self.bb.append(next - offset)
+        print self.bb
+
+    
+    def lift(self):
+        consts = {}
+        ips = []
+        vex_code = ""
+        
+        regs = {}
+        irsbs = []
+        
+        for block in self.bb:
+            irsb = pyvex.IRSB(self.code[block:], self.offset + block, self.arch)
+            irsbs.append(irsb)
+        
+            stmts = irsb.statements
             
-            # registers abstraction
-            if isinstance(stmts[i], pyvex.stmt.Put):
-                regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
-                stmts[i].offset = regs[stmts[i].offset]
+            for i in xrange(len(stmts)):
+                #TODO PutI GetI Exit
                 
-                if i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and len(stmts[i].constants) == 1: #problably program counter? self.arch["pc"]
-                    ips.append(stmts[i].constants[0].value)
+                # registers abstraction
+                if isinstance(stmts[i], pyvex.stmt.Put):
+                    regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
+                    stmts[i].offset = regs[stmts[i].offset]
+                    
+                    if i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and len(stmts[i].constants) == 1: #problably program counter? self.arch["pc"]
+                        ips.append(stmts[i].constants[0].value)
+                    else:
+                        # constants abstraction
+                        for c in stmts[i].constants:
+                            consts[c.value] = consts.get(c.value, len(consts))
+                            c.value = consts[c.value]
                 else:
                     # constants abstraction
                     for c in stmts[i].constants:
                         consts[c.value] = consts.get(c.value, len(consts))
                         c.value = consts[c.value]
+                for expr in stmts[i].expressions:
+                    if isinstance(expr, pyvex.expr.Get):
+                        regs[expr.offset] = regs.get(expr.offset, len(regs))
+                        expr.offset = regs[expr.offset]
+
+        #order addresses
+        addrs = {}
+        ips.sort()
+        for i in xrange(len(ips)):
+            addrs[ips[i]] = i
+        
+        for irsb in irsbs:
+            stmts = irsb.statements
+                     
+            for i in xrange(len(stmts)):
+                if isinstance(stmts[i], pyvex.stmt.IMark) or isinstance(stmts[i], pyvex.stmt.AbiHint):
+                    continue
+                
+                if isinstance(stmts[i], pyvex.stmt.Put) and  i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and len(stmts[i].constants) == 1:
+                    stmts[i].constants[0].value = addrs[stmts[i].constants[0].value]
+                
+            vex_code += stmts[i].__str__() + "\n"
+        
+        self.consts = consts
+        self.ips = ips
+        self.vex_code = vex_code
+
+
+
+    def handleCalls(self):
+        internals = []
+        api = []
+        api_str = ""
+        
+        for c in self.calls_insns:
+            if c.is_api:
+                api_str += str(c.fcn_name) + ","
+                api.append(c.fcn_name)
             else:
-                # constants abstraction
-                for c in stmts[i].constants:
-                    consts[c.value] = consts.get(c.value, len(consts))
-                    c.value = consts[c.value]
-            for expr in stmts[i].expressions:
-                if isinstance(expr, pyvex.expr.Get):
-                    regs[expr.offset] = regs.get(expr.offset, len(regs))
-                    expr.offset = regs[expr.offset]
-            
-        for i in xrange(len(stmts)):
-            if isinstance(stmts[i], pyvex.stmt.IMark) or isinstance(stmts[i], pyvex.stmt.AbiHint):
-                continue
-            
-            if isinstance(stmts[i], pyvex.stmt.Put) and  i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and len(stmts[i].constants) == 1:
-                stmts[i].constants[0].value = addrs[stmts[i].constants[0].value]
-            
-        vex_code += stmts[i].__str__() + "\n"
+                internals.append(c.addr)
         
-        for tgt in irsb.constant_jump_targets:
-            
-            if tgt < self.offset and tgt >= self.endaddr:
-                continue
-            if tgt in self.bb: # skip loops
-                continue
-            nirsb = pyvex.IRSB(self.code[tgt - self.offset:], tgt, self.arch)
-            self.lift_helper(nirsb)
-    
-    def lift(self):
-        self.consts = {}
-        self.regs = {}
-        self.ips = []
-        self.bb = [self.code]
-        self.vex_code = ""
+        api_hash = hashlib.md5(api_str)
         
-        irsb = pyvex.IRSB(self.code, self.offset, self.arch)
-        self.lift_helper(irsb)
+        sorted = internals[:]
+        sorted.sort()
+        calleds_dict = {}
+        for i in xrange(len(sorted)):
+            calleds_dict[sorted[i]] = i
+        for i in xrange(len(internals)):
+            internals[i] = calleds_dict[internals[i]]
+        
+        internals_str = ""
+        for fn in internals:
+            internals_str += str(fn) + ","
+        
+        internals_hash = hashlib.md5(internals_str)
+
+        return (internals_hash.digest(), api_hash.digest(), api)
 
 
-
-def handleCalledFunctions(calleds): #side-effect!
-    sorted = calleds[:]
-    sorted.sort()
-    calleds_dict = {}
-    for i in xrange(len(sorted)):
-        calleds_dict[sorted[i]] = i
-    for i in xrange(len(calleds)):
-        calleds[i] = calleds_dict[calleds[i]]
-    return
-
-def hashProcedures(calleds):
-    handleCalledFunctions(calleds)
-    s = ""
-    for fn in calleds:
-        s += str(fn) + ","
-    h = hashlib.md5(s)
-    dig = h.digest()
-    if __DEBUG__:
-        print "Procedures : " + s
-        print "    MD5: " + dig.encode("hex")
-    return dig
+    def handleJumps(self):
+        pass
 
 

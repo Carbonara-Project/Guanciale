@@ -173,7 +173,7 @@ class BinaryInfo(object):
         #r2 cmd aflj : get info about analyzed functions
         print "5: getting list of analyzed procedures..."
         funcs_dict = self.r2.cmdj('aflj')
-        sym_imp_l = len("sym.imp")
+        sym_imp_l = len("sym.imp") 
         
         print "6: getting assembly and other info about each procedure..."
         with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
@@ -201,6 +201,7 @@ class BinaryInfo(object):
                     
                     calls_insns = []
                     jumps_insns = []
+                    bb_ends = []
                     
                     for instr in fcn_instructions["ops"]:
                         if instr["type"] == "invalid":
@@ -222,16 +223,21 @@ class BinaryInfo(object):
                         #check if the instruction is of type 'call'
                         if instr["type"] == "call":
                             target_name = instr["opcode"].split()[-1]
+                            call_instr = None
                             if target_name[:sym_imp_l] == "sym.imp":
-                                calls_insns.append(matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True))
+                                call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True)
                             elif target_name[:len("sub.")] == "sub.":
-                                calls_insns.append(matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True))
+                                call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True)
                             else:
-                                calls_insns.append(matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name))
+                                call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
+                            calls_insns.append(call_instr)
+                            bb_ends.append(call_instr)
                         #check if the instruction is of type 'jump'
                         elif instr["type"] == "jump":
                             target = instr["jump"]
-                            jumps_insns.append(matching.JumpInsn(instr["offset"], instr["size"], target, (target < fcn_offset or target >= fcn_offset + fcn_size)))
+                            jump_instr = matching.JumpInsn(instr["offset"], instr["size"], target, (target < fcn_offset or target >= fcn_offset + fcn_size))
+                            jumps_insns.append(jump_instr)
+                            bb_ends.append(jump_instr)
                     
                     self.addProc(fcn_name, asm, fcn_bytes, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, calls_insns, jumps_insns)
                 except Exception as ex:
@@ -239,6 +245,7 @@ class BinaryInfo(object):
                     pass
                 count += 1
                 bar.update(count)
+
 
     def fromR2Project(self, name):
         '''
