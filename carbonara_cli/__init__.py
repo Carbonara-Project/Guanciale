@@ -31,12 +31,11 @@ class BinaryInfo(object):
         print "[Retrieving basic info about binary]"
         #open the binary file and compute sha256 hash
         binfile = open(filename, "rb")
-        hash_object = hashlib.sha256(binfile.read())
+        hash_object = hashlib.md5(binfile.read())
         hex_dig = hash_object.hexdigest()
-        binfile.close()
-
+        
         self.data = {
-            "program": { "sha256": hex_dig },
+            "program": { "md5": hex_dig },
             "procs": [],
             "codebytes": {}
         }
@@ -51,9 +50,43 @@ class BinaryInfo(object):
         
         #r2 cmd izzj : get strings contained in the binary in json
         print "2: getting strings list..."
-        self.data["strings"] = self.r2.cmdj('izzj')["strings"]
+        strings = self.r2.cmdj('izzj')["strings"]
         
-        print "3: calculating entropy..."
+        self.data["strings"] = []
+        for strg in strings:
+            s = {
+                "val": strg["string"],
+                "offset": strg["paddr"],
+                "size": strg["size"],
+                "type": strg["type"]
+            }
+            self.data["strings"].append(s)
+        
+        #r2 cmd Sj : get sections
+        print "3: getting sections..."
+        sections = self.r2.cmdj('iSj')
+        
+        self.data["sections"] = []
+        for sec in sections:
+            offset = sec["paddr"]
+            size = sec["size"]
+            
+            #calculate md5 of the section
+            binfile.seek(offset)
+            hash_object = hashlib.md5(binfile.read(size))
+            hex_dig = hash_object.hexdigest()
+            
+            s = {
+                "name": sec["name"],
+                "offset": offset,
+                "size": size,
+                "md5": hex_dig
+            }
+            self.data["sections"].append(s)
+        
+        binfile.close()
+        
+        print "4: calculating entropy..."
         self.data["entropy"] = self.r2.cmdj('p=ej') #TODO ??? must be rewritten!!! listen ML experts
 
     def __del__(self):
@@ -72,13 +105,30 @@ class BinaryInfo(object):
         :param array<string> apicalls: List of external API called in the procedure
         '''
         
-        pass #TODO write a modular and extensible addProc using the classes in the matching module
+        proc = {
+            "name": name,
+            "raw": raw,
+            "asm": asm,
+            "offset": offset,
+            "callconv": callconv,
+            "apicalls": ["printf"]
+        }
+        hash_object = hashlib.md5("PIPPO")
+        proc["hash1"] = hash_object.hexdigest()
+        proc["hash2"] = hash_object.hexdigest()
+        proc["hash3"] = hash_object.hexdigest()
+        proc["hash4"] = hash_object.hexdigest()
+        proc["hash5"] = hash_object.hexdigest()
+        proc["hash6"] = hash_object.hexdigest()
+        proc["hash7"] = hash_object.hexdigest()
+        proc["full_hash"] = hash_object.hexdigest()
+        self.data["procs"].append(proc)
 
     def addString(self, string):
         self.data["strings"].append(string)
 
     def toJson(self):
-        return json.dumps(self.data, ensure_ascii=True)
+        return json.dumps(self.data, indent=2, ensure_ascii=True)
 
     def __str__(self):
         return self.toJson()
@@ -97,11 +147,28 @@ class BinaryInfo(object):
         
         #r2 cmd ilj : get imported functions in json
         print "3: getting imported procedures names..."
-        self.data["imports"] = self.r2.cmdj('iij')
+        imports = self.r2.cmdj('iij')
+        
+        self.data["imports"] = []
+        for imp in imports:
+            i = {
+                "name": imp["name"],
+                "addr": imp["plt"] #??? for PE binaries?
+            }
+            self.data["imports"].append(i)
         
         #r2 cmd ilj : get exported symbols in json
         print "4: getting exported symbols..."
-        self.data["symbols"] = self.r2.cmdj('isj')
+        exports = self.r2.cmdj('iEj')
+        
+        self.data["exports"] = []
+        for exp in exports:
+            e = {
+                "name": exp["name"],
+                "offset": exp["paddr"],
+                "size": exp["size"]
+            }
+            self.data["exports"].append(e)
 
         #r2 cmd aflj : get info about analyzed functions
         print "5: getting list of analyzed procedures..."
