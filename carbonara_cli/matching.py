@@ -76,6 +76,9 @@ class JumpInsn(object):
         self.size = size
         self.addr = addr
         self.jumpout = jumpout
+    
+    def __str__(self):
+        return "JumpInsn(off:%x, siz:%d, tgt:%x, out:%r)" % (self.offset, self.size, self.addr, self.jumpout)
 
 class CallInsn(JumpInsn):
     def __init__(self, offset, size, addr, fcn_name, is_api=False):
@@ -83,30 +86,32 @@ class CallInsn(JumpInsn):
         self.fcn_name = fcn_name
         self.is_api = is_api
 
+    def __str__(self):
+        return "CallInsn(off:%x, siz:%d, tgt:%x, name:%s, api:%r)" % (self.offset, self.size, self.addr, self.fcn_name, self.is_api)
 
 class ProcedureHandler(object):
-    def __init__(code, offset, calls_insns, jumps_insns, bb_ends, arch):
+    def __init__(self, code, offset, bb_insns, arch):
         self.code = code
         self.offset = offset
-        self.endaddr = offset + len(code)
-        self.calls_insns = calls_insns
-        self.jumps_insns = jumps_insns
+        self.size = len(code)
+        self.bb_insns = bb_insns
         self.arch = arch
-        
+
         self.bb = [0]
-        for instr in bb_ends:
+        for instr in bb_insns:
             if instr.jumpout:
                 #if jump out continue with the next instruction
-                next = instr.offset + instr.size
-                if next < self.endaddr and next not in self.bb:
-                    self.bb.append(next - offset)
+                next = instr.offset + instr.size - offset
+                if next < len(code) and next not in self.bb:
+                    self.bb.append(next)
             else:
-                if instr.addr not in self.bb:
+                if instr.addr - offset not in self.bb:
                     self.bb.append(instr.addr - offset)
-                next = instr.offset + instr.size
-                if next < self.endaddr and next not in self.bb:
-                    self.bb.append(next - offset)
-        print self.bb
+                next = instr.offset + instr.size - offset
+                if next < len(code) and next not in self.bb:
+                    self.bb.append(next)
+        
+        self.bb.sort()
 
     
     def lift(self):
@@ -114,9 +119,10 @@ class ProcedureHandler(object):
         ips = []
         vex_code = ""
         
+        pc_offset = self.arch.registers["pc"][0]
         regs = {}
         irsbs = []
-        
+
         for block in self.bb:
             irsb = pyvex.IRSB(self.code[block:], self.offset + block, self.arch)
             irsbs.append(irsb)
@@ -124,20 +130,27 @@ class ProcedureHandler(object):
             stmts = irsb.statements
             
             for i in xrange(len(stmts)):
-                #TODO PutI GetI Exit
+                #TODO PutI GetI
                 
-                # registers abstraction
                 if isinstance(stmts[i], pyvex.stmt.Put):
-                    regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
-                    stmts[i].offset = regs[stmts[i].offset]
-                    
-                    if i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and len(stmts[i].constants) == 1: #problably program counter? self.arch["pc"]
+                    #if i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and len(stmts[i].constants) == 1: #problably program counter? self.arch["pc"]
+                    if stmts[i].offset == pc_offset and len(stmts[i].constants) == 1: 
                         ips.append(stmts[i].constants[0].value)
+                        stmts[i].reg_name = "<>"
                     else:
                         # constants abstraction
                         for c in stmts[i].constants:
                             consts[c.value] = consts.get(c.value, len(consts))
                             c.value = consts[c.value]
+                        
+                    # registers abstraction
+                    regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
+                    stmts[i].offset = regs[stmts[i].offset]
+                elif isinstance(stmts[i], pyvex.stmt.Exit):
+                    ips.append(stmts[i].dst.value)
+                    # registers abstraction
+                    regs[stmts[i].offsIP] = regs.get(stmts[i].offsIP, len(regs))
+                    stmts[i].offsIP = regs[stmts[i].offsIP]
                 else:
                     # constants abstraction
                     for c in stmts[i].constants:
@@ -145,6 +158,7 @@ class ProcedureHandler(object):
                         c.value = consts[c.value]
                 for expr in stmts[i].expressions:
                     if isinstance(expr, pyvex.expr.Get):
+                        # registers abstraction
                         regs[expr.offset] = regs.get(expr.offset, len(regs))
                         expr.offset = regs[expr.offset]
 
@@ -161,30 +175,51 @@ class ProcedureHandler(object):
                 if isinstance(stmts[i], pyvex.stmt.IMark) or isinstance(stmts[i], pyvex.stmt.AbiHint):
                     continue
                 
-                if isinstance(stmts[i], pyvex.stmt.Put) and  i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and len(stmts[i].constants) == 1:
+                if hasattr(stmts[i], "reg_name") and stmts[i].reg_name == "<>":
                     stmts[i].constants[0].value = addrs[stmts[i].constants[0].value]
+                elif isinstance(stmts[i], pyvex.stmt.Exit):
+                    stmts[i].dst.value = addrs[stmts[i].dst.value]
                 
-            vex_code += stmts[i].__str__() + "\n"
+                vex_code += stmts[i].__str__() + "\n"
         
         self.consts = consts
         self.ips = ips
         self.vex_code = vex_code
+        
+        import json
+        print "----- ProcedureHandler.lift() -----"
+        print vex_code
+        print
+        print "REGS: " + json.dumps(regs, indent=2)
+        print "CONSTS: " + json.dumps(consts, indent=2)
+        print "IPS: " + json.dumps(ips, indent=2)
+        print "-----------------------------------"
 
 
 
-    def handleCalls(self):
-        internals = []
+    def handleFlow(self):
         api = []
+        internals = []
+        jumps = []
         api_str = ""
-        
-        for c in self.calls_insns:
-            if c.is_api:
-                api_str += str(c.fcn_name) + ","
-                api.append(c.fcn_name)
+
+        for instr in self.bb_insns:
+            if isinstance(instr, CallInsn):
+                if instr.is_api:
+                    api_str += str(instr.fcn_name) + ","
+                    api.append(instr.fcn_name)
+                else:
+                    internals.append(instr.addr)
             else:
-                internals.append(c.addr)
+                if not instr.jumpout:
+                    jumps.append(instr.addr)
         
-        api_hash = hashlib.md5(api_str)
+        self.api_hash = hashlib.md5(api_str).digest()
+        
+        jumps.sort()
+        jumps_dict = {}
+        for i in xrange(len(jumps)):
+            jumps_dict[jumps[i]] = i
         
         sorted = internals[:]
         sorted.sort()
@@ -194,16 +229,37 @@ class ProcedureHandler(object):
         for i in xrange(len(internals)):
             internals[i] = calleds_dict[internals[i]]
         
+        self.jumps_flow = []
+        self.flow = []
+        
+        for instr in self.bb_insns:
+            if isinstance(instr, CallInsn):
+                if instr.is_api:
+                    self.flow.append(instr.fcn_name)
+            else:
+                if not instr.jumpout:
+                    self.flow.append(jumps_dict[instr.addr])
+                    self.jumps_flow.append(jumps_dict[instr.addr])
+        
         internals_str = ""
         for fn in internals:
             internals_str += str(fn) + ","
         
-        internals_hash = hashlib.md5(internals_str)
+        self.internals_hash = hashlib.md5(internals_str).digest()
+        
+        self.api = api
+        
+        import json
+        print "----- ProcedureHandler.handleFlow() -----"
+        print "API: " + json.dumps(self.api, indent=2)
+        print "INTERNALS: " + json.dumps(internals, indent=2)
+        print "JUMPS FLOW: " + json.dumps(self.jumps_flow, indent=2)
+        print "FLOW: " + json.dumps(self.flow, indent=2)
+        print "-----------------------------------"
 
-        return (internals_hash.digest(), api_hash.digest(), api)
 
 
-    def handleJumps(self):
-        pass
 
+
+        
 
