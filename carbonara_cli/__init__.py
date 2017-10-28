@@ -121,7 +121,7 @@ class BinaryInfo(object):
         
         proc = {
             "name": name,
-            "raw": raw,
+            "raw": base64.b64encode(raw),
             "asm": asm,
             "offset": offset,
             "callconv": callconv,
@@ -133,7 +133,7 @@ class BinaryInfo(object):
         proc["hash3"] = handler.jumps_flow_hash.encode("hex")
         proc["hash4"] = handler.flow_hash.encode("hex")
         proc["hash5"] = handler.consts_hash.encode("hex")
-        proc["hash6"] = handler.vex_code.encode("hex")
+        proc["hash6"] = handler.vex_code_hash.encode("hex")
         proc["hash7"] = hashlib.md5(str(ops)).digest().encode("hex")
         proc["full_hash"] = hashlib.md5(raw).hexdigest()
         self.data["procs"].append(proc)
@@ -142,6 +142,7 @@ class BinaryInfo(object):
         self.data["strings"].append(string)
 
     def toJson(self):
+        #return str(self.data)
         return json.dumps(self.data, indent=2, ensure_ascii=True)
 
     def __str__(self):

@@ -258,9 +258,11 @@ class ProcedureHandler(object):
             internals_str += str(fn) + ","
         
         self.internals_hash = hashlib.md5(internals_str).digest()
-        self.jumps_flow = hashlib.md5(jumps_flow_str).digest()
+        self.jumps_flow_hash = hashlib.md5(jumps_flow_str).digest()
         self.flow_hash = hashlib.md5(flow_str).digest()
         self.api = api
+        
+        
         
         import json
         print "----- ProcedureHandler.handleFlow() -----"
