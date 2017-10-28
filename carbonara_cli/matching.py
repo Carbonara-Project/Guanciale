@@ -112,6 +112,7 @@ class ProcedureHandler(object):
                     self.bb.append(next)
         
         self.bb.sort()
+        self.bb.append(offset + len(code))
 
     
     def lift(self):
@@ -123,8 +124,8 @@ class ProcedureHandler(object):
         regs = {}
         irsbs = []
 
-        for block in self.bb:
-            irsb = pyvex.IRSB(self.code[block:], self.offset + block, self.arch)
+        for bidx in xrange(len(self.bb) -1):
+            irsb = pyvex.IRSB(self.code[self.bb[bidx]:self.bb[bidx+1]], self.offset + self.bb[bidx], self.arch)
             irsbs.append(irsb)
         
             stmts = irsb.statements
@@ -133,7 +134,6 @@ class ProcedureHandler(object):
                 #TODO PutI GetI
                 
                 if isinstance(stmts[i], pyvex.stmt.Put):
-                    #if i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and len(stmts[i].constants) == 1: #problably program counter? self.arch["pc"]
                     if stmts[i].offset == pc_offset and len(stmts[i].constants) == 1: 
                         ips.append(stmts[i].constants[0].value)
                         stmts[i].reg_name = "<>"
@@ -191,6 +191,7 @@ class ProcedureHandler(object):
         self.consts_hash = hashlib.md5(str(consts_list)).digest()
         self.vex_code_hash = hashlib.md5(vex_code).digest()
         
+        '''
         import json
         print "----- ProcedureHandler.lift() -----"
         print vex_code
@@ -199,7 +200,7 @@ class ProcedureHandler(object):
         print "CONSTS: " + json.dumps(consts, indent=2)
         print "IPS: " + json.dumps(ips, indent=2)
         print "-----------------------------------"
-
+        '''
 
 
     def handleFlow(self):
@@ -262,8 +263,7 @@ class ProcedureHandler(object):
         self.flow_hash = hashlib.md5(flow_str).digest()
         self.api = api
         
-        
-        
+        '''
         import json
         print "----- ProcedureHandler.handleFlow() -----"
         print "API: " + json.dumps(self.api, indent=2)
@@ -271,7 +271,7 @@ class ProcedureHandler(object):
         print "JUMPS FLOW: " + json.dumps(self.jumps_flow, indent=2)
         print "FLOW: " + json.dumps(self.flow, indent=2)
         print "-----------------------------------"
-
+        '''
 
 
 

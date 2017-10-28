@@ -106,9 +106,9 @@ class BinaryInfo(object):
         :param array<JumpInsn> flow: Array of jump (or call) object extracted from the code
         '''
         
-        print "+++++++++ %s +++++++++" % name
+        ''' "+++++++++ %s +++++++++" % name
         print asm
-        print
+        print'''
         
         handler = matching.ProcedureHandler(raw, offset, flow, matching.archFromR2("x86",64,"little"))
         
@@ -116,8 +116,8 @@ class BinaryInfo(object):
         
         handler.lift()
         
-        print "+++++++++++++++++++++++++"
-        print
+        '''print "+++++++++++++++++++++++++"
+        print'''
         
         proc = {
             "name": name,
@@ -233,6 +233,7 @@ class BinaryInfo(object):
                         asm += instr["opcode"] + "\n"
                         
                     #check if the instruction is of type 'call'
+                    #TODO!!! skip call and jumps to registers
                     if instr["type"] == "call":
                         target_name = instr["opcode"].split()[-1]
                         call_instr = None
