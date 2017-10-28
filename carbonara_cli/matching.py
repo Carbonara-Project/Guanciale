@@ -186,6 +186,11 @@ class ProcedureHandler(object):
         self.ips = ips
         self.vex_code = vex_code
         
+        consts_list = sorted(consts, key=consts.get)
+        
+        self.consts_hash = hashlib.md5(str(consts_list)).digest()
+        self.vex_code_hash = hashlib.md5(vex_code).digest()
+        
         import json
         print "----- ProcedureHandler.lift() -----"
         print vex_code
@@ -198,6 +203,8 @@ class ProcedureHandler(object):
 
 
     def handleFlow(self):
+        
+        #TODO replace sorting loops with sorted function
         api = []
         internals = []
         jumps = []
@@ -231,22 +238,28 @@ class ProcedureHandler(object):
         
         self.jumps_flow = []
         self.flow = []
+        jumps_flow_str = ""
+        flow_str = ""
         
         for instr in self.bb_insns:
             if isinstance(instr, CallInsn):
                 if instr.is_api:
                     self.flow.append(instr.fcn_name)
+                    flow_str += "@" + instr.fcn_name + ","
             else:
                 if not instr.jumpout:
                     self.flow.append(jumps_dict[instr.addr])
                     self.jumps_flow.append(jumps_dict[instr.addr])
+                    jumps_flow_str += str(jumps_dict[instr.addr]) + ","
+                    flow_str += str(jumps_dict[instr.addr]) + ","
         
         internals_str = ""
         for fn in internals:
             internals_str += str(fn) + ","
         
         self.internals_hash = hashlib.md5(internals_str).digest()
-        
+        self.jumps_flow = hashlib.md5(jumps_flow_str).digest()
+        self.flow_hash = hashlib.md5(flow_str).digest()
         self.api = api
         
         import json

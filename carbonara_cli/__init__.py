@@ -125,16 +125,16 @@ class BinaryInfo(object):
             "asm": asm,
             "offset": offset,
             "callconv": callconv,
-            "apicalls": ["printf"]
+            "apicalls": handler.api
         }
         hash_object = hashlib.md5("PIPPO")
-        proc["hash1"] = hash_object.hexdigest()
-        proc["hash2"] = hash_object.hexdigest()
-        proc["hash3"] = hash_object.hexdigest()
-        proc["hash4"] = hash_object.hexdigest()
-        proc["hash5"] = hash_object.hexdigest()
-        proc["hash6"] = hash_object.hexdigest()
-        proc["hash7"] = hash_object.hexdigest()
+        proc["hash1"] = handler.api_hash.encode("hex")
+        proc["hash2"] = handler.internals_hash.encode("hex")
+        proc["hash3"] = handler.jumps_flow_hash.encode("hex")
+        proc["hash4"] = handler.flow_hash.encode("hex")
+        proc["hash5"] = handler.consts_hash.encode("hex")
+        proc["hash6"] = handler.vex_code.encode("hex")
+        proc["hash7"] = hashlib.md5(str(ops)).digest().encode("hex")
         proc["full_hash"] = hashlib.md5(raw).hexdigest()
         self.data["procs"].append(proc)
 
