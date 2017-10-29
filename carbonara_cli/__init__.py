@@ -35,7 +35,10 @@ class BinaryInfo(object):
         hex_dig = hash_object.hexdigest()
         
         self.data = {
-            "program": { "md5": hex_dig },
+            "program": {
+                "md5": hex_dig,
+                "filename": filename
+            },
             "procs": [],
             "codebytes": {}
         }
@@ -47,6 +50,7 @@ class BinaryInfo(object):
         print "1: getting info about file..."
         self.data["info"] = self.r2.cmdj('iIj')
         self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
+        del self.data["info"]["class"]
         
         #r2 cmd izzj : get strings contained in the binary in json
         print "2: getting strings list..."
