@@ -46,14 +46,8 @@ class BinaryInfo(object):
         #open radare2 as subprocess
         self.r2 = r2handler.open(filename)
         
-        #r2 cmd iIj : get info about binary in json
-        print "1: getting info about file..."
-        self.data["info"] = self.r2.cmdj('iIj')
-        self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
-        del self.data["info"]["class"]
-        
         #r2 cmd izzj : get strings contained in the binary in json
-        print "2: getting strings list..."
+        print "1: getting strings list..."
         strings = self.r2.cmdj('izzj')["strings"]
         
         self.data["strings"] = []
@@ -67,7 +61,7 @@ class BinaryInfo(object):
             self.data["strings"].append(s)
         
         #r2 cmd Sj : get sections
-        print "3: getting sections..."
+        print "2: getting sections..."
         sections = self.r2.cmdj('iSj')
         
         self.data["sections"] = []
@@ -90,7 +84,7 @@ class BinaryInfo(object):
         
         binfile.close()
         
-        print "4: calculating entropy..."
+        print "3: calculating entropy..."
         self.data["entropy"] = self.r2.cmdj('p=ej') #TODO ??? must be rewritten!!! listen ML experts
 
     def __del__(self):
@@ -114,7 +108,7 @@ class BinaryInfo(object):
         print asm
         print'''
         
-        handler = matching.ProcedureHandler(raw, offset, flow, matching.archFromR2("x86",64,"little"))
+        handler = matching.ProcedureHandler(raw, offset, flow, self.arch)
         
         handler.handleFlow()
         
@@ -131,7 +125,7 @@ class BinaryInfo(object):
             "callconv": callconv,
             "apicalls": handler.api
         }
-        hash_object = hashlib.md5("PIPPO")
+
         proc["hash1"] = handler.api_hash.encode("hex")
         proc["hash2"] = handler.internals_hash.encode("hex")
         proc["hash3"] = handler.jumps_flow_hash.encode("hex")
@@ -160,12 +154,20 @@ class BinaryInfo(object):
         Get info from the radare2 process
         '''
 
+        #r2 cmd iIj : get info about binary in json
+        print "2: getting file properties..."
+        self.data["info"] = self.r2.cmdj('iIj')
+        self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
+        del self.data["info"]["class"]
+        
+        self.arch = matching.archFromR2(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
+
         #r2 cmd ilj : get imported libs in json
-        print "2: getting imported libraries..."
+        print "3: getting imported libraries..."
         self.data["libs"] = self.r2.cmdj('ilj')
         
         #r2 cmd ilj : get imported functions in json
-        print "3: getting imported procedures names..."
+        print "4: getting imported procedures names..."
         imports = self.r2.cmdj('iij')
         
         self.data["imports"] = []
@@ -177,7 +179,7 @@ class BinaryInfo(object):
             self.data["imports"].append(i)
         
         #r2 cmd ilj : get exported symbols in json
-        print "4: getting exported symbols..."
+        print "5: getting exported symbols..."
         exports = self.r2.cmdj('iEj')
         
         self.data["exports"] = []
@@ -190,11 +192,11 @@ class BinaryInfo(object):
             self.data["exports"].append(e)
 
         #r2 cmd aflj : get info about analyzed functions
-        print "5: getting list of analyzed procedures..."
+        print "6: getting list of analyzed procedures..."
         funcs_dict = self.r2.cmdj('aflj')
         sym_imp_l = len("sym.imp") 
         
-        print "6: getting assembly and other info about each procedure..."
+        print "7: getting assembly and other info about each procedure..."
         with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
             count = 0
             for func in funcs_dict:
@@ -288,7 +290,7 @@ class BinaryInfo(object):
         Grab basic informations about the binary from r2
         '''
 
-        print "[Retrieving info about procedures]"
+        print "[Extracting info from binary]"
         
         #r2 cmd aa : analyze all
         print "1: analyzing all..."
