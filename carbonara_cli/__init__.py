@@ -239,8 +239,7 @@ class BinaryInfo(object):
                         asm += instr["opcode"] + "\n"
                         
                     #check if the instruction is of type 'call'
-                    #TODO!!! skip call and jumps to registers
-                    if instr["type"] == "call":
+                    if instr["type"] == "call" and "jump" in instr:
                         target_name = instr["opcode"].split()[-1]
                         call_instr = None
                         if target_name[:sym_imp_l] == "sym.imp":
@@ -251,7 +250,7 @@ class BinaryInfo(object):
                             call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
                         flow_insns.append(call_instr)
                     #check if the instruction is of type 'jump'
-                    elif instr["type"] == "cjmp" or instr["type"] == "jmp":
+                    elif (instr["type"] == "cjmp" or instr["type"] == "jmp") and "jump" in instr:
                         target = instr["jump"]
                         jumpout = target < fcn_offset or target >= fcn_offset + fcn_size
                         jump_instr = matching.JumpInsn(instr["offset"], instr["size"], target, jumpout)
