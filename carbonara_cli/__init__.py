@@ -92,7 +92,7 @@ class BinaryInfo(object):
         if "r2" in self.__dict__:
             self.r2.quit()
 
-    def addProc(self, name, asm, raw, ops, offset, callconv, flow):
+    def addProc(self, name, asm, raw, insns_list, ops, offset, callconv, flow):
         '''
         generate a dictionary with the informations needed to describe a procedure and add it to the procedures list
 
@@ -109,7 +109,7 @@ class BinaryInfo(object):
         print asm
         print'''
         
-        handler = matching.ProcedureHandler(raw, offset, flow, self.arch)
+        handler = matching.ProcedureHandler(raw, insns_list, offset, flow, self.arch)
         
         handler.handleFlow()
         
@@ -203,63 +203,76 @@ class BinaryInfo(object):
         with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
             count = 0
             for func in funcs_dict:
-                #skip library symbols
-                if len(func["name"]) >= sym_imp_l and func["name"][:sym_imp_l] == "sym.imp":
-                    continue
-                
-                fcn_offset = func["offset"]
-                fcn_size = func["size"]
-                fcn_name = func["name"]
-                fcn_call_conv = func["calltype"]
-                
-                #r2 cmd pdfj : get assembly from a function in json
-                fcn_instructions = self.r2.cmdj('pdfj @ ' + fcn_name)
-                
-                #r2 cmd p6e : get bytes of a function in base64
-                self.r2.cmd('s ' + str(fcn_offset))
-                fcn_bytes = base64.b64decode(self.r2.cmd('p6e ' + str(fcn_size)).rstrip())
-                
-                asm = ""
-                opcodes_list = ""
-                
-                flow_insns = []
-                
-                for instr in fcn_instructions["ops"]:
-                    if instr["type"] == "invalid":
+                try:
+                    #skip library symbols
+                    if len(func["name"]) >= sym_imp_l and func["name"][:sym_imp_l] == "sym.imp":
                         continue
                     
-                    #get the first byte in hex
-                    first_byte = instr["bytes"][:2]
-                    opcodes_list += first_byte
+                    fcn_offset = func["offset"]
+                    fcn_size = func["size"]
+                    fcn_name = func["name"]
+                    fcn_call_conv = func["calltype"]
                     
-                    #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
-                    self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
+                    #r2 cmd pdfj : get assembly from a function in json
+                    fcn_instructions = self.r2.cmdj('pdfj @ ' + fcn_name)
                     
-                    #insert comments in disassembly if presents
-                    if "comment" in instr:
-                        asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
-                    else:
-                        asm += instr["opcode"] + "\n"
+                    #r2 cmd p6e : get bytes of a function in base64
+                    self.r2.cmd('s ' + str(fcn_offset))
+                    fcn_bytes = base64.b64decode(self.r2.cmd('p6e ' + str(fcn_size)).rstrip())
+                    
+                    insns_list = []
+                    asm = ""
+                    opcodes_list = ""
+                    
+                    flow_insns = []
+                    
+                    for instr in fcn_instructions["ops"]:
+                        if instr["type"] == "invalid":
+                            break
                         
-                    #check if the instruction is of type 'call'
-                    if instr["type"] == "call" and "jump" in instr:
-                        target_name = instr["opcode"].split()[-1]
-                        call_instr = None
-                        if target_name[:sym_imp_l] == "sym.imp":
-                            call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True)
-                        elif target_name[:len("sub.")] == "sub.":
-                            call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True)
+                        #get the first byte in hex
+                        first_byte = instr["bytes"][:2]
+                        opcodes_list += first_byte
+                        
+                        #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
+                        self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
+                        
+                        #insert comments in disassembly if presents
+                        if "comment" in instr:
+                            asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
                         else:
-                            call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
-                        flow_insns.append(call_instr)
-                    #check if the instruction is of type 'jump'
-                    elif (instr["type"] == "cjmp" or instr["type"] == "jmp") and "jump" in instr:
-                        target = instr["jump"]
-                        jumpout = target < fcn_offset or target >= fcn_offset + fcn_size
-                        jump_instr = matching.JumpInsn(instr["offset"], instr["size"], target, jumpout)
-                        flow_insns.append(jump_instr)
-                
-                self.addProc(fcn_name, asm, fcn_bytes, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
+                            asm += instr["opcode"] + "\n"
+                            
+                        #check if the instruction is of type 'call'
+                        if instr["type"] == "call" and "jump" in instr:
+                            target_name = instr["opcode"].split()[-1]
+                            call_instr = None
+                            if target_name[:sym_imp_l] == "sym.imp":
+                                call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True)
+                            elif target_name[:len("sub.")] == "sub.":
+                                call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True)
+                            else:
+                                call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
+                            flow_insns.append(call_instr)
+                        #check if the instruction is of type 'jump'
+                        elif (instr["type"] == "cjmp" or instr["type"] == "jmp") and "jump" in instr:
+                            target = instr["jump"]
+                            jumpout = target < fcn_offset or target >= fcn_offset + fcn_size
+                            jump_instr = matching.JumpInsn(instr["offset"], instr["size"], target, jumpout)
+                            flow_insns.append(jump_instr)
+                        
+                        insns_list.append(instr["bytes"].decode("hex"))
+                    
+                    self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
+                except Exception as err:
+                    '''print err
+                    print
+                    print fcn_name
+                    print
+                    print asm
+                    print'''
+                    print "error on function %s, skipped" % func["name"]
+                    pass
                 count += 1
                 bar.update(count)
 

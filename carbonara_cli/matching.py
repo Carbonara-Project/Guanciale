@@ -90,32 +90,33 @@ class CallInsn(JumpInsn):
         return "CallInsn(off:%x, siz:%d, tgt:%x, name:%s, api:%r)" % (self.offset, self.size, self.addr, self.fcn_name, self.is_api)
 
 class ProcedureHandler(object):
-    def __init__(self, code, offset, bb_insns, arch):
-        self.code = code
+    def __init__(self, code, insns_list, offset, bb_insns, arch):
+        self.insns_list = insns_list
         self.offset = offset
-        self.size = len(code)
         self.bb_insns = bb_insns
         self.arch = arch
+        self.code = code
+        self.size = len(code)
 
-        self.bb = [0]
-        for instr in bb_insns:
+
+    def liftByBlocks(self):
+        bb = [0]
+        for instr in self.bb_insns:
             if instr.jumpout:
                 #if jump out continue with the next instruction
-                next = instr.offset + instr.size - offset
-                if next < len(code) and next not in self.bb:
-                    self.bb.append(next)
+                next = instr.offset + instr.size - self.offset
+                if next < self.size and next not in bb:
+                    bb.append(next)
             else:
-                if instr.addr - offset not in self.bb:
-                    self.bb.append(instr.addr - offset)
-                next = instr.offset + instr.size - offset
-                if next < len(code) and next not in self.bb:
-                    self.bb.append(next)
-        
-        self.bb.sort()
-        self.bb.append(offset + len(code))
+                if instr.addr - self.offset not in bb:
+                    bb.append(instr.addr - self.offset)
+                next = instr.offset + instr.size - self.offset
+                if next < self.size and next not in bb:
+                    bb.append(next)
 
-    
-    def lift(self):
+        bb.sort()
+        bb.append(self.offset + self.size)
+
         consts = {}
         ips = []
         vex_code = ""
@@ -124,8 +125,8 @@ class ProcedureHandler(object):
         regs = {}
         irsbs = []
 
-        for bidx in xrange(len(self.bb) -1):
-            irsb = pyvex.IRSB(self.code[self.bb[bidx]:self.bb[bidx+1]], self.offset + self.bb[bidx], self.arch)
+        for bidx in xrange(len(bb) -1):
+            irsb = pyvex.IRSB(self.code[bb[bidx]:bb[bidx+1]], self.offset + bb[bidx], self.arch)
             irsbs.append(irsb)
         
             stmts = irsb.statements
@@ -201,6 +202,101 @@ class ProcedureHandler(object):
         print "IPS: " + json.dumps(ips, indent=2)
         print "-----------------------------------"
         '''
+
+
+    def liftByInsns(self):
+        consts = {}
+        ips = []
+        vex_code = ""
+        
+        pc_offset = self.arch.registers["pc"][0]
+        regs = {}
+        irsbs = []
+
+        
+        for instr in self.insns_list:
+            irsb = pyvex.IRSB(instr, 0, self.arch)
+            irsbs.append(irsb)
+        
+            stmts = irsb.statements
+            
+            for i in xrange(len(stmts)):
+                #TODO PutI GetI
+                
+                if isinstance(stmts[i], pyvex.stmt.Put):
+                    if stmts[i].offset == pc_offset and len(stmts[i].constants) == 1: 
+                        ips.append(stmts[i].constants[0].value)
+                        stmts[i].reg_name = "<>"
+                    else:
+                        # constants abstraction
+                        for c in stmts[i].constants:
+                            consts[c.value] = consts.get(c.value, len(consts))
+                            c.value = consts[c.value]
+                        
+                    # registers abstraction
+                    regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
+                    stmts[i].offset = regs[stmts[i].offset]
+                elif isinstance(stmts[i], pyvex.stmt.Exit):
+                    ips.append(stmts[i].dst.value)
+                    # registers abstraction
+                    regs[stmts[i].offsIP] = regs.get(stmts[i].offsIP, len(regs))
+                    stmts[i].offsIP = regs[stmts[i].offsIP]
+                else:
+                    # constants abstraction
+                    for c in stmts[i].constants:
+                        consts[c.value] = consts.get(c.value, len(consts))
+                        c.value = consts[c.value]
+                for expr in stmts[i].expressions:
+                    if isinstance(expr, pyvex.expr.Get):
+                        # registers abstraction
+                        regs[expr.offset] = regs.get(expr.offset, len(regs))
+                        expr.offset = regs[expr.offset]
+
+        #order addresses
+        addrs = {}
+        ips.sort()
+        for i in xrange(len(ips)):
+            addrs[ips[i]] = i
+        
+        for irsb in irsbs:
+            stmts = irsb.statements
+                     
+            for i in xrange(len(stmts)):
+                if isinstance(stmts[i], pyvex.stmt.IMark) or isinstance(stmts[i], pyvex.stmt.AbiHint):
+                    continue
+                
+                if hasattr(stmts[i], "reg_name") and stmts[i].reg_name == "<>":
+                    stmts[i].constants[0].value = addrs[stmts[i].constants[0].value]
+                elif isinstance(stmts[i], pyvex.stmt.Exit):
+                    stmts[i].dst.value = addrs[stmts[i].dst.value]
+                
+                vex_code += stmts[i].__str__() + "\n"
+        
+        self.consts = consts
+        self.ips = ips
+        self.vex_code = vex_code
+        
+        consts_list = sorted(consts, key=consts.get)
+        
+        self.consts_hash = hashlib.md5(str(consts_list)).digest()
+        self.vex_code_hash = hashlib.md5(vex_code).digest()
+        
+        '''
+        import json
+        print "----- ProcedureHandler.lift() -----"
+        print vex_code
+        print
+        print "REGS: " + json.dumps(regs, indent=2)
+        print "CONSTS: " + json.dumps(consts, indent=2)
+        print "IPS: " + json.dumps(ips, indent=2)
+        print "-----------------------------------"
+        '''
+
+    def lift(self):
+        try:
+            self.liftByBlocks()
+        except pyvex.errors.PyVEXError:
+            self.liftByInsns()       
 
 
     def handleFlow(self):
