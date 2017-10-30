@@ -25,10 +25,6 @@ idaapi.autoWait()
 #DEBUG
 f = open('debug.txt', 'w')
 
-#iterate through segments
-for seg in idautils.Segments():
-	print idc.SegName(seg), idc.SegStart(seg), idc.SegEnd(seg)
-
 #iterate trhough functions
 for func in idautils.Functions():
 
@@ -45,17 +41,29 @@ for func in idautils.Functions():
 	end = idc.GetFunctionAttr(func, FUNCATTR_END)
 	cur_addr = start
 
+	apicalls = 0
 	asm = ''
 
 	while cur_addr <= end:
 		asm += hex(cur_addr) + ' ' + idc.GetDisasm(cur_addr) +'\n'
-		cur_addr = idc.Nexthead(cur_addr, end)
+
+		#check if api call/jump
+		mnem = idc.GetMnem(cur_addr)
+		if mnem == 'call' or mnem == 'jmp':
+			addr = idc.GetOpnd(cur_addr, 0)
+			check = idc.GetFunctionFlags(func)
+			if check & FUNC_LIB:
+				apicalls += 1
+
+		cur_addr = idc.NextHead(cur_addr, end)
 
 	#get raw data
-	raw_data = idc.getManyBytes(start, end - start)
+	raw_data = idc.GetManyBytes(start, end - start)
 
-	f.write(start +' '+ name+'\n')
+	#DEBUG
+	f.write(hex(start) +' '+ name+'\n')
 	f.write(asm)
+	f.write('\n')
 
 f.close()
 

@@ -19,6 +19,7 @@ import idb
 import config
 import matching
 import pyvex
+import subprocess
 
 class BinaryInfo(object):
     def __init__(self, filename):
@@ -148,6 +149,8 @@ class BinaryInfo(object):
 
     def fromIdaDB(self, filename):
         pass #TODO call ida and parse idb with idapython
+        #subprocess.Popen('"C:/Program Files/IDA 7.0/ida64.exe" -A -S"idascript.py" ' + filename)
+
 
     def _r2Task(self):
         '''
