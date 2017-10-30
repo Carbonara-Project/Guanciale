@@ -11,3 +11,6 @@ from idc import *
 import os
 
 # --------> LUIGI <-----------
+
+for seg in idautils.Segments():
+	print idc.SegName(seg), idc.SegStart(seg), idc.SegEnd(seg)
