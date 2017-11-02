@@ -31,7 +31,7 @@ exports | TODO
 libs | TODO
 '''
 
-ida_class_map = {
+class_map = {
     0:  'EXE_old',     # MS DOS EXE File
     1:  'COM_old',     # MS DOS COM File
     2:  'BIN',         # Binary File
@@ -132,7 +132,13 @@ for func in idautils.Functions():
             size = next_instr - cur_addr
 
         #get assembly and comments
-        asm += hex(cur_addr)[:-1] + ' ' + idc.GetDisasm(cur_addr) +'\n'
+        curr_asm = hex(cur_addr)[:-1] + ' ' + idc.GetDisasm(cur_addr).split(';')[0]
+        try:
+            curr_asm += '   ;' + idc.GetCommentEx(cur_addr, True).replace('\n', ' ')
+        except:
+            pass
+        curr_asm += '\n'
+        asm += curr_asm
 
         #add to flow_insns if call or jump
         mnem = idc.GetMnem(cur_addr)
@@ -168,7 +174,7 @@ for func in idautils.Functions():
 
     #DEBUG
     f.write(hex(start)[:-1] +' '+ name+ ';flags: '+hex(flags)[:-1]+'\nflow_insns: '+ str(flow_insns)+'\n')
-    #f.write(asm)
+    f.write(asm)
     f.write('\n')
     #f.write(raw_data)
 
