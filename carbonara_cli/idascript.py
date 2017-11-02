@@ -15,7 +15,7 @@ name | OK
 raw ! OK
 asm | OK
 offset |OK
-flow_insns | almost done
+flow_insns | OK
 callconv | TODO
 '''
 
@@ -63,24 +63,31 @@ for func in idautils.Functions():
         if mnem == 'call':
             op = idc.GetOpnd(cur_addr, 0)
             op_type = idc.GetOpType(cur_addr, 0)
-            #addr = idc.LocByname(op)
-            #check = idc.GetFunctionFlags(addr)
             
             if op[0] == '_': #temp test if api (not 100% reliable)
                 func_name = op[1:]
             else:
                 func_name = op
             
-            target = 0 #TODO
-            call_insns.append((hex(cur_addr)[:-1], size, func_name, target))
+            target = None
+            if op_type == o_near or op_type == o_far:
+                target = idc.LocByName(op)
+
+            call_insns.append((cur_addr, size, target, func_name))
 
         elif mnem == 'jmp':
             op = idc.GetOpnd(cur_addr, 0)
             op_type = idc.GetOpType(cur_addr, 0)
 
-            target = 0 #TODO
-            jumpout = 0 #need target to know if jumpout
-            jmp_insns.append((hex(cur_addr)[:-1], size, target, jumpout))
+            target = None
+            jumpout = None
+            
+            if op_type == o_near or op_type == o_far:
+                target = idc.LocByName(op)
+                jumpout = target  < start or target > end
+                
+
+            jmp_insns.append((cur_addr, size, target, jumpout))
 
         cur_addr = next_instr
 
