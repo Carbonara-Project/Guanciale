@@ -17,7 +17,7 @@ info: (Where is even located all this info in IDA?) (edit: God bless tmr232 from
     program_class | TODO
     arch | OK
     bits | OK
-    endian | SO CLOSE YET SO FAR
+    endian | OK
 procedures:
     name | OK
     raw | OK
@@ -41,16 +41,16 @@ dump = open('dump.json', 'w')
 
 data = {
     'info' : { #TODO
-        'program_class' : None,
-        'arch' : None,
-        'bits' : None,
-        'endian' : None
+        'program_class': None,
+        'arch': None,
+        'bits': None,
+        'endian': None
     },
-    'procedures' : [],
-    'ops' : [],
-    'imports' : [],
-    'exports' : [],
-    'libs' : []
+    'procedures': [],
+    'ops': [],
+    'imports': [],
+    'exports': [],
+    'libs': []
 }
 
 #get info
@@ -67,12 +67,10 @@ elif info.is_32bit():
 else:
     data['info']['bits'] = 16
 
-'''
 #get endian
 data['info']['endian'] = "little"
-if info.mf:
+if info.is_be():
     data['info']['endian'] = "big"
-'''
 
 #iterate through functions
 for func in idautils.Functions():
@@ -143,15 +141,15 @@ for func in idautils.Functions():
     #f.write(raw_data)
 
     proc_data = {
-        'name' : name,
-        'offset' : start,
-        'raw_data' : base64.b64encode(raw_data),
-        'asm' : asm,
-        'flow_insns' : flow_insns
+        'name': name,
+        'offset': start,
+        'raw_data': base64.b64encode(raw_data),
+        'asm': asm,
+        'flow_insns': flow_insns
     }
     data['procedures'].append(proc_data)
 
-f.write(data['info']['arch']+" "+str(data['info']['bits'])+"\n"+str(data['ops'])+'\n')
+f.write(data['info']['arch']+" "+str(data['info']['bits'])+" "+data['info']['endian']+"\n"+str(data['ops'])+'\n')
 json.dump(data, dump)
 
 f.close()

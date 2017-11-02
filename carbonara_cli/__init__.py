@@ -148,6 +148,11 @@ class BinaryInfo(object):
         return self.toJson()
 
     def fromIdaDB(self, filename):
+        '''
+        Get information about binary stored in a IDA database
+
+        :param str name: The name of the IDA databse or its path
+        '''
         pass #TODO call ida and parse idb with idapython
         print "2: Waiting for IDA to parse database (this may take several minutes)..."
         file_ext = os.path.splitext(filename)[1]
