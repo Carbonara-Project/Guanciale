@@ -149,8 +149,39 @@ class BinaryInfo(object):
 
     def fromIdaDB(self, filename):
         pass #TODO call ida and parse idb with idapython
-        #subprocess.Popen('"C:/Program Files/IDA 7.0/ida64.exe" -A -S"idascript.py" ' + filename)
+        print "2: Waiting for IDA to parse database (this may take several minutes)..."
+        file_ext = os.path.splitext(filename)[1]
+        if file_ext == '.idb':
+            process = subprocess.Popen('"C:/Program Files/IDA 7.0/ida.exe" -A -S"idascript.py" ' + filename)
+        elif file_ext == '.i64':
+            process = subprocess.Popen('"C:/Program Files/IDA 7.0/ida64.exe" -A -S"idascript.py" ' + filename)
+        else:
+            raise RuntimeError('file not supported')
+            return
+        process.wait()
 
+        #getting data from idascript via json
+        idadump = open('dump.json', 'r')
+        data = json.load(idadump)
+
+        print "2: Analyzing data..."
+        self.data['info'] = data['info']
+        self.arch = matching.archFromIda()
+        for func in data['procedures']:
+            fcn_name = func['name']
+            asm = func['asm']
+            fcn_bytes = func['raw_data']
+            insns_list = None #TODO
+            opcodes_list = None #TODO
+            fcn_offset = func['offset']
+            fcn_call_conv = None #TODO => PROB NOT POSSIBLE (thanks IDA)
+            flow_insns = func['flow_insns']
+            self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
+
+        idadump.close()
+
+        #clean up
+        os.remove('dump.json')
 
     def _r2Task(self):
         '''

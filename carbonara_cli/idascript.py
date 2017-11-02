@@ -13,12 +13,22 @@ import json
 import base64
 
 '''
-name | OK
-raw | OK
-asm | OK
-offset |OK
-flow_insns | OK
-callconv | TODO => PROB NOT POSSIBLE
+info: (Where is even located all this info in IDA?)
+    program_class | TODO
+    arch | TODO
+    bits | TODO => PROB NOT POSSIBLE (i love IDA)
+    endian | TODO
+procedures:
+    name | OK
+    raw | OK
+    asm | OK
+    offset |OK
+    flow_insns | OK
+    callconv | TODO => PROB NOT POSSIBLE (thanks IDA)
+ops | OK
+imports | TODO
+exports | TODO
+libs | TODO
 '''
 
 #wait for IDA analysys to complete
@@ -30,10 +40,20 @@ f = open('debug.txt', 'w')
 dump = open('dump.json', 'w')
 
 data = {
-   'procedures' : []
+    'info' : { #TODO
+        'program_class' : None,
+        'arch' : None,
+        'bits' : None,
+        'endian' : None
+    },
+    'procedures' : [],
+    'ops' : [],
+    'imports' : [],
+    'exports' : [],
+    'libs' : []
 }
 
-#iterate trhough functions
+#iterate through functions
 for func in idautils.Functions():
 
     #if func from library skip
@@ -48,12 +68,10 @@ for func in idautils.Functions():
     end = idc.GetFunctionAttr(func, FUNCATTR_END)
     cur_addr = start
 
-    call_insns = []
-    jmp_insns = []
+    flow_insns = []
     asm = ''
 
     while cur_addr <= end:
-
         next_instr = idc.NextHead(cur_addr, end)
 
         #get size instr
@@ -65,36 +83,28 @@ for func in idautils.Functions():
         #get assembly and comments
         asm += hex(cur_addr)[:-1] + ' ' + idc.GetDisasm(cur_addr) +'\n'
 
-        #check if api call/jump
+        #add to flow_insns if call or jump
         mnem = idc.GetMnem(cur_addr)
         if mnem == 'call':
             op = idc.GetOpnd(cur_addr, 0)
             op_type = idc.GetOpType(cur_addr, 0)
-            
             if op[0] == '_': #temp test if api (not 100% reliable)
                 func_name = op[1:]
             else:
                 func_name = op
-            
             target = None
             if op_type == o_near or op_type == o_far:
                 target = idc.LocByName(op)
-
-            call_insns.append((cur_addr, size, target, func_name))
-
+            flow_insns.append((cur_addr, size, target, func_name))
         elif mnem == 'jmp':
             op = idc.GetOpnd(cur_addr, 0)
             op_type = idc.GetOpType(cur_addr, 0)
-
             target = None
             jumpout = None
-
             if op_type == o_near or op_type == o_far:
                 target = idc.LocByName(op)
                 jumpout = target  < start or target > end
-                
-
-            jmp_insns.append((cur_addr, size, target, jumpout))
+            flow_insns.append((cur_addr, size, target, jumpout))
 
         cur_addr = next_instr
 
@@ -102,9 +112,12 @@ for func in idautils.Functions():
     #get raw data
     raw_data = idc.GetManyBytes(start, end - start)
 
+    #get first byte of procedure
+    data['ops'].append(hex(ord(raw_data[0]))[2:][:2])
+
     #DEBUG
-    f.write(hex(start)[:-1] +' '+ name+ ';flags: '+hex(flags)[:-1]+'\ncall_insns: '+ str(call_insns)+'; jmp_insns: '+str(jmp_insns)+'\n')
-    f.write(asm)
+    f.write(hex(start)[:-1] +' '+ name+ ';flags: '+hex(flags)[:-1]+'\nflow_insns: '+ str(flow_insns)+'\n')
+    #f.write(asm)
     f.write('\n')
     #f.write(raw_data)
 
@@ -113,11 +126,11 @@ for func in idautils.Functions():
         'offset' : start,
         'raw_data' : base64.b64encode(raw_data),
         'asm' : asm,
-        'call_insns' : call_insns,
-        'jmp_insns' : jmp_insns
+        'flow_insns' : flow_insns
     }
     data['procedures'].append(proc_data)
 
+f.write(str(data['ops'])+'\n')
 json.dump(data, dump)
 
 f.close()
