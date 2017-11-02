@@ -164,9 +164,21 @@ class BinaryInfo(object):
         idadump = open('dump.json', 'r')
         data = json.load(idadump)
 
-        print "2: Analyzing data..."
+        print "2: getting file properties..."
         self.data['info'] = data['info']
-        self.arch = matching.archFromIda()
+
+        self.arch = matching.archFromIda(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
+        
+        print "3: getting imported libraries..."
+        self.data['libs'] = data['libs']
+
+        print "4: getting imported procedures names..."
+        self.data['imports'] = data['imports']
+
+        print "5: getting exported symbols..."
+        self.data["exports"] = data['exports']
+
+        print "6: getting assembly and other info about each procedure..."
         for func in data['procedures']:
             fcn_name = func['name']
             asm = func['asm']
