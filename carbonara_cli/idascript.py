@@ -13,18 +13,18 @@ import json
 import base64
 
 '''
-info: (Where is even located all this info in IDA?)
+info: (Where is even located all this info in IDA?) (edit: God bless tmr232 from StackOverflow)
     program_class | TODO
-    arch | TODO
-    bits | TODO => PROB NOT POSSIBLE (i love IDA)
-    endian | TODO
+    arch | OK
+    bits | OK
+    endian | SO CLOSE YET SO FAR
 procedures:
     name | OK
     raw | OK
     asm | OK
     offset |OK
     flow_insns | OK
-    callconv | TODO => PROB NOT POSSIBLE (thanks IDA)
+    callconv | TODO => PROB NOT POSSIBLE (i love IDA)
 ops | OK
 imports | TODO
 exports | TODO
@@ -52,6 +52,27 @@ data = {
     'exports' : [],
     'libs' : []
 }
+
+#get info
+info = idaapi.get_inf_structure()
+
+#get arch
+data['info']['arch'] = info.procName
+
+#get bits
+if info.is_64bit():
+    data['info']['bits'] = 64
+elif info.is_32bit():
+    data['info']['bits'] = 32
+else:
+    data['info']['bits'] = 16
+
+'''
+#get endian
+data['info']['endian'] = "little"
+if info.mf:
+    data['info']['endian'] = "big"
+'''
 
 #iterate through functions
 for func in idautils.Functions():
@@ -130,7 +151,7 @@ for func in idautils.Functions():
     }
     data['procedures'].append(proc_data)
 
-f.write(str(data['ops'])+'\n')
+f.write(data['info']['arch']+" "+str(data['info']['bits'])+"\n"+str(data['ops'])+'\n')
 json.dump(data, dump)
 
 f.close()
