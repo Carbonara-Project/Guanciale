@@ -9,14 +9,16 @@ import idautils
 import idaapi
 import idc
 import os
+import json
+import base64
 
 '''
 name | OK
-raw ! OK
+raw | OK
 asm | OK
 offset |OK
 flow_insns | OK
-callconv | TODO
+callconv | TODO => PROB NOT POSSIBLE
 '''
 
 #wait for IDA analysys to complete
@@ -25,6 +27,11 @@ idaapi.autoWait()
 #DEBUG
 f = open('debug.txt', 'w')
 
+dump = open('dump.json', 'w')
+
+data = {
+   'procedures' : []
+}
 
 #iterate trhough functions
 for func in idautils.Functions():
@@ -56,7 +63,7 @@ for func in idautils.Functions():
             size = next_instr - cur_addr
 
         #get assembly and comments
-        asm += hex(cur_addr) + ' ' + idc.GetDisasm(cur_addr) +'\n'
+        asm += hex(cur_addr)[:-1] + ' ' + idc.GetDisasm(cur_addr) +'\n'
 
         #check if api call/jump
         mnem = idc.GetMnem(cur_addr)
@@ -81,7 +88,7 @@ for func in idautils.Functions():
 
             target = None
             jumpout = None
-            
+
             if op_type == o_near or op_type == o_far:
                 target = idc.LocByName(op)
                 jumpout = target  < start or target > end
@@ -97,10 +104,24 @@ for func in idautils.Functions():
 
     #DEBUG
     f.write(hex(start)[:-1] +' '+ name+ ';flags: '+hex(flags)[:-1]+'\ncall_insns: '+ str(call_insns)+'; jmp_insns: '+str(jmp_insns)+'\n')
-    #f.write(asm)
-    #f.write('\n')
+    f.write(asm)
+    f.write('\n')
+    #f.write(raw_data)
+
+    proc_data = {
+        'name' : name,
+        'offset' : start,
+        'raw_data' : base64.b64encode(raw_data),
+        'asm' : asm,
+        'call_insns' : call_insns,
+        'jmp_insns' : jmp_insns
+    }
+    data['procedures'].append(proc_data)
+
+json.dump(data, dump)
 
 f.close()
+dump.close()
 
 #stop script
 idc.Exit(0)
