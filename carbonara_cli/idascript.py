@@ -25,7 +25,7 @@ procedures:
     ops | OK
     offset |OK
     flow_insns | OK
-    isns_list | TODO
+    insns_list | OK
     callconv | TODO => PROB NOT POSSIBLE (i love IDA\n ps: please save me)
 imports | OK
 exports | OK
@@ -145,9 +145,8 @@ for func in idautils.Functions():
 
     flow_insns = []
     asm = ''
-
     ops = []
-
+    insns_list = []
     while cur_addr <= end:
         next_instr = idc.NextHead(cur_addr, end)
 
@@ -166,7 +165,11 @@ for func in idautils.Functions():
         curr_asm += '\n'
         asm += curr_asm
 
+        #get first byte of instruction
         ops.append(hex(ord(idc.GetManyBytes(cur_addr, 1)))[2:])
+
+        #get instruction bytes
+        insns_list.append(idc.GetManyBytes(cur_addr, size))
 
         #add to flow_insns if call or jump
         mnem = idc.GetMnem(cur_addr)
@@ -210,6 +213,7 @@ for func in idautils.Functions():
         'raw_data': base64.b64encode(raw_data),
         'asm': asm,
         'flow_insns': flow_insns,
+        'insns_list': insns_list
         'ops': ops
     }
     data['procedures'].append(proc_data)
