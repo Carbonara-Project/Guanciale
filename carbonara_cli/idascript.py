@@ -169,7 +169,7 @@ for func in idautils.Functions():
         ops.append(hex(ord(idc.GetManyBytes(cur_addr, 1)))[2:])
 
         #get instruction bytes
-        insns_list.append(idc.GetManyBytes(cur_addr, size))
+        insns_list.append(base64.b64encode(idc.GetManyBytes(cur_addr, size)))
 
         #add to flow_insns if call or jump
         mnem = idc.GetMnem(cur_addr)
@@ -205,7 +205,7 @@ for func in idautils.Functions():
     #f.write(asm)
     f.write(str(ops)+'\n')
     f.write('\n')
-    #f.write(raw_data)
+    #f.write(insns_list)
 
     proc_data = {
         'name': name,
@@ -213,7 +213,7 @@ for func in idautils.Functions():
         'raw_data': base64.b64encode(raw_data),
         'asm': asm,
         'flow_insns': flow_insns,
-        'insns_list': insns_list
+        'insns_list': insns_list,
         'ops': ops
     }
     data['procedures'].append(proc_data)

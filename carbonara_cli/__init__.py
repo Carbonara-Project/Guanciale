@@ -188,7 +188,9 @@ class BinaryInfo(object):
             fcn_name = func['name']
             asm = func['asm']
             fcn_bytes = func['raw_data']
-            insns_list = None #TODO
+            insns_list = []
+            for ins in func['insns_list']:
+                insns_list.append(base64.b64decode(ins))
             opcodes_list = func['ops']
             fcn_offset = func['offset']
             fcn_call_conv = None #TODO => PROB NOT POSSIBLE (thanks IDA)
