@@ -29,7 +29,7 @@ procedures:
     callconv | TODO => PROB NOT POSSIBLE (i love IDA\n ps: please save me)
 imports | OK
 exports | OK
-libs | TODO
+libs | OK
 '''
 
 class_map = {
@@ -104,9 +104,9 @@ if info.is_be():
 #get program_class
 data['info']['program_class'] = class_map[info.filetype]
 
-#get imports
+#get imports and dlls
 def imp_cb(ea, name, ord): #call-back function required by idaapi.enum_import_names()
-    f.write("%08x: %s\n" % (ea, name))
+    #f.write("%08x: %s\n" % (ea, name))
     i = {
         'name': name,
         'addr': ea
@@ -116,7 +116,8 @@ def imp_cb(ea, name, ord): #call-back function required by idaapi.enum_import_na
 
 nimps = idaapi.get_import_module_qty()
 for i in xrange(0, nimps):
-    name = idaapi.get_import_module_name(i)
+    dllname = idaapi.get_import_module_name(i)
+    data['libs'].append(dllname)
     idaapi.enum_import_names(i, imp_cb)
 
 #get exports
@@ -201,10 +202,10 @@ for func in idautils.Functions():
     raw_data = idc.GetManyBytes(start, end - start)
 
     #DEBUG
-    f.write(hex(start)[:-1] +' '+ name+ ';flags: '+hex(flags)[:-1]+'\nflow_insns: '+ str(flow_insns)+'\n')
+    #f.write(hex(start)[:-1] +' '+ name+ ';flags: '+hex(flags)[:-1]+'\nflow_insns: '+ str(flow_insns)+'\n')
     #f.write(asm)
-    f.write(str(ops)+'\n')
-    f.write('\n')
+    #f.write(str(ops)+'\n')
+    #f.write('\n')
     #f.write(insns_list)
 
     proc_data = {
