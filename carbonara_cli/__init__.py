@@ -189,7 +189,7 @@ class BinaryInfo(object):
             asm = func['asm']
             fcn_bytes = func['raw_data']
             insns_list = None #TODO
-            opcodes_list = None #TODO
+            opcodes_list = func['ops']
             fcn_offset = func['offset']
             fcn_call_conv = None #TODO => PROB NOT POSSIBLE (thanks IDA)
             flow_insns = func['flow_insns']

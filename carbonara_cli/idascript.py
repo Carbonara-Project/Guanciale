@@ -22,12 +22,13 @@ procedures:
     name | OK
     raw | OK
     asm | OK
+    ops | OK
     offset |OK
     flow_insns | OK
+    isns_list | TODO
     callconv | TODO => PROB NOT POSSIBLE (i love IDA\n ps: please save me)
-ops | OK
-imports | TODO
-exports | TODO
+imports | OK
+exports | OK
 libs | TODO
 '''
 
@@ -76,7 +77,6 @@ data = {
         'endian': None
     },
     'procedures': [],
-    'ops': [],
     'imports': [],
     'exports': [],
     'libs': []
@@ -104,6 +104,30 @@ if info.is_be():
 #get program_class
 data['info']['program_class'] = class_map[info.filetype]
 
+#get imports
+def imp_cb(ea, name, ord): #call-back function required by idaapi.enum_import_names()
+    f.write("%08x: %s\n" % (ea, name))
+    i = {
+        'name': name,
+        'addr': ea
+    }
+    data['imports'].append(i)
+    return True
+
+nimps = idaapi.get_import_module_qty()
+for i in xrange(0, nimps):
+    name = idaapi.get_import_module_name(i)
+    idaapi.enum_import_names(i, imp_cb)
+
+#get exports
+for exp in list(idautils.Entries()):
+    e = {
+        'name': exp[3],
+        'addr': exp[1],
+        'size': None #TODO
+    }
+    data['exports'].append(e)
+
 #iterate through functions
 for func in idautils.Functions():
 
@@ -122,6 +146,8 @@ for func in idautils.Functions():
     flow_insns = []
     asm = ''
 
+    ops = []
+
     while cur_addr <= end:
         next_instr = idc.NextHead(cur_addr, end)
 
@@ -139,6 +165,8 @@ for func in idautils.Functions():
             pass
         curr_asm += '\n'
         asm += curr_asm
+
+        ops.append(hex(ord(idc.GetManyBytes(cur_addr, 1)))[2:])
 
         #add to flow_insns if call or jump
         mnem = idc.GetMnem(cur_addr)
@@ -169,12 +197,10 @@ for func in idautils.Functions():
     #get raw data
     raw_data = idc.GetManyBytes(start, end - start)
 
-    #get first byte of procedure
-    data['ops'].append(hex(ord(raw_data[0]))[2:][:2])
-
     #DEBUG
     f.write(hex(start)[:-1] +' '+ name+ ';flags: '+hex(flags)[:-1]+'\nflow_insns: '+ str(flow_insns)+'\n')
-    f.write(asm)
+    #f.write(asm)
+    f.write(str(ops)+'\n')
     f.write('\n')
     #f.write(raw_data)
 
@@ -183,11 +209,12 @@ for func in idautils.Functions():
         'offset': start,
         'raw_data': base64.b64encode(raw_data),
         'asm': asm,
-        'flow_insns': flow_insns
+        'flow_insns': flow_insns,
+        'ops': ops
     }
     data['procedures'].append(proc_data)
 
-f.write(data['info']['program_class']+ " "+data['info']['arch']+" "+str(data['info']['bits'])+" "+data['info']['endian']+"\n"+str(data['ops'])+'\n')
+#f.write(data['info']['program_class']+ " "+data['info']['arch']+" "+str(data['info']['bits'])+" "+data['info']['endian']+"\n"+str(data['ops'])+'\n')
 json.dump(data, dump)
 
 f.close()
