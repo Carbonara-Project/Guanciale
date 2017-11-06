@@ -104,18 +104,11 @@ class BinaryInfo(object):
         :param array<JumpInsn> flow: Array of jump (or call) object extracted from the code
         '''
         
-        ''' "+++++++++ %s +++++++++" % name
-        print asm
-        print'''
-        
         handler = matching.ProcedureHandler(raw, insns_list, offset, flow, self.arch)
         
         handler.handleFlow()
         
         handler.lift()
-        
-        '''print "+++++++++++++++++++++++++"
-        print'''
         
         proc = {
             "name": name,
@@ -150,7 +143,7 @@ class BinaryInfo(object):
         '''
         Get information about binary stored in a IDA database
 
-        :param str name: The name of the IDA databse or its path
+        :param str filename: The name of the IDA databse or its path
         '''
         
         if config.idacmd == None:
@@ -159,9 +152,9 @@ class BinaryInfo(object):
         print "2: Waiting for IDA to parse database (this may take several minutes)..."
         file_ext = os.path.splitext(filename)[1]
         if file_ext == '.idb':
-            process = subprocess.Popen(config.idacmd + ' -A -S"idascript.py" ' + filename)
+            process = subprocess.Popen(config.idacmd + ' -A -S"' + os.path.join(os.path.dirname(__file__), "idascript.py") + '" ' + filename)
         elif file_ext == '.i64':
-            process = subprocess.Popen(config.ida64cmd = None' -A -S"idascript.py" ' + filename)
+            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + os.path.join(os.path.dirname(__file__), "idascript.py") + '" ' + filename)
         else:
             raise RuntimeError('file not supported')
         process.wait()
@@ -326,14 +319,7 @@ class BinaryInfo(object):
                     
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
-                    '''print err
-                    print
-                    print fcn_name
-                    print
-                    print asm
-                    print'''
                     print "error on function %s, skipped" % func["name"]
-                    pass
                 count += 1
                 bar.update(count)
 
