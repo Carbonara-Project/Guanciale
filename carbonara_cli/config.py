@@ -87,7 +87,12 @@ def populateConfig_idacmd():
             except: pass
             prefix = os.path.expanduser(prefix) #change ~ to /home/username
             #get ProgramFiles(x86) from wine
-            program_files = subprocess.check_output("wine cmd /c 'echo %ProgramFiles%'", shell=True).rstrip()
+            try:
+                program_files = subprocess.check_output("wine cmd /c 'echo %ProgramFiles%'", shell=True).rstrip()
+            except subprocess.CalledProcessError:
+                idacmd = None
+                ida64cmd = None
+                return
             if program_files != "":
                 #get an array of directories in the ProgramFiles(x86) folder (relative to posix not wine) which the name starts with 'IDA'
                 ida_dirs = glob.glob(prefix + "/drive_c/" + program_files[2:].replace("\\", "/") + "/IDA*/")
@@ -110,7 +115,12 @@ def populateConfig_idacmd():
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq64.exe'"
                             return
             #get ProgramFiles from wine
-            program_files = subprocess.check_output("wine cmd /c 'echo %ProgramW6432%'", shell=True).rstrip()
+            try:
+                program_files = subprocess.check_output("wine cmd /c 'echo %ProgramW6432%'", shell=True).rstrip()
+            except subprocess.CalledProcessError:
+                idacmd = None
+                ida64cmd = None
+                return
             if program_files != "":
                 #get an array of directories in the ProgramFiles folder (relative to posix not wine) wich the name starts with 'IDA'
                 ida_dirs = glob.glob(prefix + "/drive_c/" + program_files[2:].replace("\\", "/") + "/IDA*/")
