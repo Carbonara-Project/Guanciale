@@ -18,7 +18,6 @@ import progressbar
 import idb
 import config
 import matching
-import pyvex
 import subprocess
 
 class BinaryInfo(object):
@@ -154,12 +153,15 @@ class BinaryInfo(object):
         :param str name: The name of the IDA databse or its path
         '''
         
+        if config.idacmd == None:
+             raise NotImplementedError() #parse idb without calling IDA
+
         print "2: Waiting for IDA to parse database (this may take several minutes)..."
         file_ext = os.path.splitext(filename)[1]
         if file_ext == '.idb':
-            process = subprocess.Popen('"C:/Program Files/IDA 7.0/ida.exe" -A -S"idascript.py" ' + filename)
+            process = subprocess.Popen(config.idacmd + ' -A -S"idascript.py" ' + filename)
         elif file_ext == '.i64':
-            process = subprocess.Popen('"C:/Program Files/IDA 7.0/ida64.exe" -A -S"idascript.py" ' + filename)
+            process = subprocess.Popen(config.ida64cmd = None' -A -S"idascript.py" ' + filename)
         else:
             raise RuntimeError('file not supported')
         process.wait()
@@ -184,18 +186,26 @@ class BinaryInfo(object):
         self.data["exports"] = data['exports']
 
         print "6: getting assembly and other info about each procedure..."
-        for func in data['procedures']:
-            fcn_name = func['name']
-            asm = func['asm']
-            fcn_bytes = func['raw_data']
-            insns_list = []
-            for ins in func['insns_list']:
-                insns_list.append(base64.b64decode(ins))
-            opcodes_list = func['ops']
-            fcn_offset = func['offset']
-            fcn_call_conv = None #TODO => PROB NOT POSSIBLE (thanks IDA)
-            flow_insns = func['flow_insns']
-            self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
+        
+        with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
+            count = 0
+            for func in data['procedures']:
+                try:
+                    fcn_name = func['name']
+                    asm = func['asm']
+                    fcn_bytes = func['raw_data']
+                    insns_list = []
+                    for ins in func['insns_list']:
+                        insns_list.append(base64.b64decode(ins))
+                    opcodes_list = func['ops']
+                    fcn_offset = func['offset']
+                    fcn_call_conv = None #TODO => PROB NOT POSSIBLE (thanks IDA)
+                    flow_insns = func['flow_insns']
+                    self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
+                except Exception as err:
+                    print "error on function %s, skipped" % func["name"]
+                count += 1
+                bar.update(count)
 
         idadump.close()
 
