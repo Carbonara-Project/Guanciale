@@ -153,7 +153,7 @@ class BinaryInfo(object):
 
         :param str name: The name of the IDA databse or its path
         '''
-        pass #TODO call ida and parse idb with idapython
+        
         print "2: Waiting for IDA to parse database (this may take several minutes)..."
         file_ext = os.path.splitext(filename)[1]
         if file_ext == '.idb':
@@ -162,7 +162,6 @@ class BinaryInfo(object):
             process = subprocess.Popen('"C:/Program Files/IDA 7.0/ida64.exe" -A -S"idascript.py" ' + filename)
         else:
             raise RuntimeError('file not supported')
-            return
         process.wait()
 
         #getting data from idascript via json

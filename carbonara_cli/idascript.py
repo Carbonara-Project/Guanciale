@@ -143,7 +143,7 @@ for func in idautils.Functions():
     start = idc.GetFunctionAttr(func, FUNCATTR_START)
     end = idc.GetFunctionAttr(func, FUNCATTR_END)
     cur_addr = start
-
+    
     flow_insns = []
     asm = ''
     ops = []
