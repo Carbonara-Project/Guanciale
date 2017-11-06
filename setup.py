@@ -11,15 +11,14 @@ with open('README.md') as readme_file:
     readme = readme_file.read()
 
 setup(
-    name='carbonara-cli',
+    name='guanciale',
     version="1.0alpha",
     license=__license__,
-    description='CLI interface for Carbonara',
+    description='Grab information needed by Carbonara',
     long_description=readme,
     author=__author__,
     author_email=__email__,
-    url='https://github.com/andreafioraldi/Carbonara-CLI',
-    package_dir={'carbonara_cli': 'carbonara_cli'},
-    packages=['carbonara_cli'],
-    scripts=['carbonara_cli.py'],
+    url='https://github.com/Carbonara-Project/Guanciale',
+    package_dir={'guanciale': 'guanciale'},
+    packages=['guanciale']
 )

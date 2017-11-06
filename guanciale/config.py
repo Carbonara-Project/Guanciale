@@ -156,7 +156,7 @@ def writeConfig():
         "idacmd": idacmd,
         "ida64cmd": ida64cmd
     }
-    config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"), "w")
+    config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_guanciale.config.json"), "w")
     json.dump(data, config_file, indent=4)
     config_file.close()
 
@@ -176,7 +176,7 @@ def populate():
     
     #read config file
     try:
-        config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"))
+        config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_guanciale.config.json"))
         config_json = json.load(config_file)
         config_file.close()
         if "radare2" in config_json:

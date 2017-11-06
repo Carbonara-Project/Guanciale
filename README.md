@@ -1,6 +1,6 @@
-# Carbonara-CLI
+# Guanciale -- Carbonara Project
 
-CLI client for Carbonara
+Grab informations needed by Carbonara from executables and disassemblers databases
 
 ## Install
 ```bash
