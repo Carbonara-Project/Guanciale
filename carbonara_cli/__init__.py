@@ -172,6 +172,7 @@ class BinaryInfo(object):
         self.data['info'] = data['info']
 
         self.arch = matching.archFromIda(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
+        self.data["info"]["arch"] = self.arch.name
         
         print "3: getting imported libraries..."
         self.data['libs'] = data['libs']
@@ -213,7 +214,8 @@ class BinaryInfo(object):
         del self.data["info"]["class"]
         
         self.arch = matching.archFromR2(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
-
+        self.data["info"]["arch"] = self.arch.name
+        
         #r2 cmd ilj : get imported libs in json
         print "3: getting imported libraries..."
         self.data["libs"] = self.r2.cmdj('ilj')
