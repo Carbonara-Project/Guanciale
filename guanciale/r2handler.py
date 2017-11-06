@@ -10,7 +10,7 @@ if os.name == "posix":
 from subprocess import Popen, PIPE
 
 class open:
-    """Class representing an r2pipe connection with a running radare2 instance
+    """Class representing a custom r2pipe connection with a running radare2 instance
     """
     def __init__(self, filename='', flags=[]):
         """Open a new r2 pipe

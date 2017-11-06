@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+
+__author__ = "Andrea Fioraldi, Luigi Paolo Pileggi"
+__copyright__ = "Copyright 2017, Carbonara Project"
+__license__ = "BSD 2-clause"
+__email__ = "andreafioraldi@gmail.com, willownoises@gmail.com"
+
 import os
 import glob
 import json
@@ -80,7 +87,12 @@ def populateConfig_idacmd():
             except: pass
             prefix = os.path.expanduser(prefix) #change ~ to /home/username
             #get ProgramFiles(x86) from wine
-            program_files = subprocess.check_output("wine cmd /c 'echo %ProgramFiles%'", shell=True).rstrip()
+            try:
+                program_files = subprocess.check_output("wine cmd /c 'echo %ProgramFiles%'", shell=True).rstrip()
+            except subprocess.CalledProcessError:
+                idacmd = None
+                ida64cmd = None
+                return
             if program_files != "":
                 #get an array of directories in the ProgramFiles(x86) folder (relative to posix not wine) which the name starts with 'IDA'
                 ida_dirs = glob.glob(prefix + "/drive_c/" + program_files[2:].replace("\\", "/") + "/IDA*/")
@@ -103,7 +115,12 @@ def populateConfig_idacmd():
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq64.exe'"
                             return
             #get ProgramFiles from wine
-            program_files = subprocess.check_output("wine cmd /c 'echo %ProgramW6432%'", shell=True).rstrip()
+            try:
+                program_files = subprocess.check_output("wine cmd /c 'echo %ProgramW6432%'", shell=True).rstrip()
+            except subprocess.CalledProcessError:
+                idacmd = None
+                ida64cmd = None
+                return
             if program_files != "":
                 #get an array of directories in the ProgramFiles folder (relative to posix not wine) wich the name starts with 'IDA'
                 ida_dirs = glob.glob(prefix + "/drive_c/" + program_files[2:].replace("\\", "/") + "/IDA*/")
@@ -139,7 +156,7 @@ def writeConfig():
         "idacmd": idacmd,
         "ida64cmd": ida64cmd
     }
-    config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"), "w")
+    config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_guanciale.config.json"), "w")
     json.dump(data, config_file, indent=4)
     config_file.close()
 
@@ -159,7 +176,7 @@ def populate():
     
     #read config file
     try:
-        config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_bininfo.config.json"))
+        config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_guanciale.config.json"))
         config_json = json.load(config_file)
         config_file.close()
         if "radare2" in config_json:
