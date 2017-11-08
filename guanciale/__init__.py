@@ -20,6 +20,9 @@ import config
 import matching
 import subprocess
 
+class ArchNotSupported(RuntimeError):
+    pass
+
 class BinaryInfo(object):
     def __init__(self, filename):
         '''
@@ -166,7 +169,10 @@ class BinaryInfo(object):
         print "2: getting file properties..."
         self.data['info'] = data['info']
 
-        self.arch = matching.archFromIda(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
+        try:
+            self.arch = matching.archFromIda(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
+        except:
+            raise ArchNotSupported("arch %s not supported" % self.data["info"]["arch"])
         self.data["info"]["arch"] = self.arch.name
         
         print "3: getting imported libraries..."
@@ -216,7 +222,10 @@ class BinaryInfo(object):
         self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
         del self.data["info"]["class"]
         
-        self.arch = matching.archFromR2(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
+        try:
+            self.arch = matching.archFromR2(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
+        except:
+            raise ArchNotSupported("arch %s not supported" % self.data["info"]["arch"])
         self.data["info"]["arch"] = self.arch.name
         
         #r2 cmd ilj : get imported libs in json
