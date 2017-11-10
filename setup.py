@@ -6,9 +6,14 @@ __license__ = "BSD 2-clause"
 __email__ = "andreafioraldi@gmail.com, willownoises@gmail.com"
 
 from setuptools import setup
+import os
 
 with open('README.md') as readme_file:
     readme = readme_file.read()
+
+capstone_pkg = "capstone"
+if os.name == 'nt':
+    capstone_pkg = "capstone-windows"
 
 setup(
     name='guanciale',
@@ -20,5 +25,6 @@ setup(
     author_email=__email__,
     url='https://github.com/Carbonara-Project/Guanciale',
     package_dir={'guanciale': 'guanciale'},
-    packages=['guanciale']
+    packages=['guanciale'],
+    install_requires=[capstone_pkg, 'python-idb', 'progessbar2']
 )
