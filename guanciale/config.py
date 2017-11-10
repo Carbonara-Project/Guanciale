@@ -17,30 +17,37 @@ idacmd = None
 ida64cmd = None
 
 def _downloadRadare():
-    biname = "radare2"
-    if os.name == "nt":
-        biname += ".exe"
+    url = "https://raw.githubusercontent.com/Carbonara-Project/Carbonara-Downloads/master/" + platform.system() + "/files.txt"
+    r = requests.get(url)
+    files = r.text.split("\n")
+    
+    r2 = None
+    for filename in files:
+        if "radare2" in filename:
+            r2 = filename
         
-    url = "https://raw.githubusercontent.com/Carbonara-Project/Carbonara-Downloads/master/" + platform.system() + "/" + binname
-    path = os.path.join(os.path.dirname(__file__), binname)
-    try:
-        out_file = open(path, "wb")
-    except IOError as err:
-        if err.errno == 13: #permission denied
-            print "Permission denied to download radare2 in the app folder, try to run me as root."
-            exit(1)
-        raise err
-    response = requests.get(url, stream=True)
-    shutil.copyfileobj(response.raw, out_file)
-    out_file.close()
+        path = os.path.join(os.path.dirname(__file__), "radare2", filename)
+        url = "https://raw.githubusercontent.com/Carbonara-Project/Carbonara-Downloads/master/" + platform.system() + "/" + filename
+        
+        try:
+            out_file = open(path, "wb")
+        except IOError as err:
+            if err.errno == 13: #permission denied
+                print "Permission denied to download radare2 files in the app folder, try to run me as root."
+                exit(1)
+            raise err
+        r = requests.get(url, stream=True)
+        shutil.copyfileobj(r.raw, out_file)
+        out_file.close()
     
     if os.name == "posix":
-        os.chmod(path, 0755)
-    return path
+        os.chmod(r2, 0755)
+    return r2
 
 def populateConfig_radare():
     def inPath(cmd):
         return any(os.access(os.path.join(path, cmd), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
+    
     global radare2
     rad = "radare2"
     if os.name == "nt":
