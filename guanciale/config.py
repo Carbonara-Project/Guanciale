@@ -17,7 +17,7 @@ idacmd = None
 ida64cmd = None
 
 def _downloadRadare():
-    url = "https://raw.githubusercontent.com/Carbonara-Project/Carbonara-Downloads/master/" + platform.system() "/" + platform.machine() + "/files.txt"
+    url = "https://carbonara-project.github.io/Carbonara-Downloads/" + platform.system() + "/" + platform.machine() + "/files.txt"
     try:
         r = requests.get(url)
     except:

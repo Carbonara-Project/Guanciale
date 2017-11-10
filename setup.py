@@ -30,7 +30,6 @@ setup(
         capstone_pkg,
         'requests',
         'python-idb',
-        'progressbar2',
         'archinfo',
         'pyvex'
     ]

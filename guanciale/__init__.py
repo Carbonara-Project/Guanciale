@@ -14,7 +14,7 @@ import os
 import r2handler
 import idblib
 import capstone
-import progressbar
+import status
 import idb
 import config
 import matching
@@ -186,7 +186,7 @@ class BinaryInfo(object):
 
         print "6: getting assembly and other info about each procedure..."
         
-        with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
+        with status.Status(len(funcs_dict)) as bar:
             count = 0
             for func in data['procedures']:
                 try:
@@ -263,7 +263,7 @@ class BinaryInfo(object):
         sym_imp_l = len("sym.imp") 
         
         print "7: getting assembly and other info about each procedure..."
-        with progressbar.ProgressBar(max_value=len(funcs_dict)) as bar:
+        with status.Status(len(funcs_dict)) as bar:
             count = 0
             for func in funcs_dict:
                 try:
