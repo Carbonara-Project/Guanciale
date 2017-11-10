@@ -207,7 +207,7 @@ for func in idautils.Functions():
             if op_type == o_near or op_type == o_far:
                 target = idc.LocByName(op)
             flow_insns.append((cur_addr, size, target, func_name))
-        elif mnem == 'jmp':
+        elif mnem.startswith('j'):
             op = idc.GetOpnd(cur_addr, 0)
             op_type = idc.GetOpType(cur_addr, 0)
             target = None
