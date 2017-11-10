@@ -13,7 +13,7 @@ import json
 import base64
 
 '''
-info: (Where is even located all this info in IDA?) (edit: God bless tmr232 from StackOverflow)
+info:
     program_class | OK
     arch | OK
     bits | OK
@@ -26,7 +26,7 @@ procedures:
     offset |OK
     flow_insns | OK
     insns_list | OK
-    callconv | TODO => PROB NOT POSSIBLE (i love IDA\n ps: please save me)
+    callconv | OK
 imports | OK
 exports | OK
 libs | OK
@@ -64,9 +64,7 @@ class_map = {
 #wait for IDA analysys to complete
 idaapi.autoWait()
 
-#DEBUG
-f = open('debug.txt', 'w')
-
+#json to communicate with main process
 dump = open('dump.json', 'w')
 
 data = {
@@ -106,7 +104,6 @@ data['info']['program_class'] = class_map[info.filetype]
 
 #get imports and dlls
 def imp_cb(ea, name, ord): #call-back function required by idaapi.enum_import_names()
-    #f.write("%08x: %s\n" % (ea, name))
     i = {
         'name': name,
         'addr': ea
@@ -139,6 +136,31 @@ for func in idautils.Functions():
 
     #get procedure name
     name = idc.GetFunctionName(func)
+
+    #get procedure callconv
+    func_info = idc.GetType(start)
+    if func_info != None and 'cdecl' in func_info:
+        callconv = 'cdecl'
+    elif func_info != None and 'ellipsis' in func_info:
+        callconv = 'ellipsis'
+    elif func_info != None and 'stdcall' in func_info:
+        callconv = 'stdcall'
+    elif func_info != None and 'pascal' in func_info:
+        callconv = 'pascal'
+    elif func_info != None and 'fastcall' in func_info:
+        callconv = 'fastcall'
+    elif func_info != None and 'thiscall' in func_info:
+        callconv = 'thiscall'
+    elif func_info != None and 'manual' in func_info:
+        callconv = 'manual'
+    elif func_info != None and 'speciale' in func_info:
+        callconv = 'speciale'
+    elif func_info != None and 'specialp' in func_info:
+        callconv = 'specialp'
+    elif func_info != None and 'special' in func_info:
+        callconv = 'special'
+    else:
+        callconv = ''
     
     start = idc.GetFunctionAttr(func, FUNCATTR_START)
     end = idc.GetFunctionAttr(func, FUNCATTR_END)
@@ -201,16 +223,10 @@ for func in idautils.Functions():
     #get raw data
     raw_data = idc.GetManyBytes(start, end - start)
 
-    #DEBUG
-    #f.write(hex(start)[:-1] +' '+ name+ ';flags: '+hex(flags)[:-1]+'\nflow_insns: '+ str(flow_insns)+'\n')
-    #f.write(asm)
-    #f.write(str(ops)+'\n')
-    #f.write('\n')
-    #f.write(insns_list)
-
     proc_data = {
         'name': name,
         'offset': start,
+        'callconv': callconv,
         'raw_data': base64.b64encode(raw_data),
         'asm': asm,
         'flow_insns': flow_insns,
@@ -219,10 +235,8 @@ for func in idautils.Functions():
     }
     data['procedures'].append(proc_data)
 
-#f.write(data['info']['program_class']+ " "+data['info']['arch']+" "+str(data['info']['bits'])+" "+data['info']['endian']+"\n"+str(data['ops'])+'\n')
 json.dump(data, dump)
 
-f.close()
 dump.close()
 
 #stop script

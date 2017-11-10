@@ -198,7 +198,7 @@ class BinaryInfo(object):
                         insns_list.append(base64.b64decode(ins))
                     opcodes_list = func['ops']
                     fcn_offset = func['offset']
-                    fcn_call_conv = None #TODO => PROB NOT POSSIBLE (thanks IDA)
+                    fcn_call_conv = func['callconv']
                     flow_insns = func['flow_insns']
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
