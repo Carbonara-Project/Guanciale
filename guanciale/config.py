@@ -17,8 +17,11 @@ idacmd = None
 ida64cmd = None
 
 def _downloadRadare():
-    url = "https://raw.githubusercontent.com/Carbonara-Project/Carbonara-Downloads/master/" + platform.system() + "/files.txt"
-    r = requests.get(url)
+    url = "https://raw.githubusercontent.com/Carbonara-Project/Carbonara-Downloads/master/" + platform.system() "/" + platform.machine() + "/files.txt"
+    try:
+        r = requests.get(url)
+    except:
+        return None
     files = r.text.split("\n")
     
     r2 = None
@@ -57,19 +60,21 @@ def populateConfig_radare():
         sel = None
         while True:
             print
-            print " 1. Download precompiled binary
+            print " 1. Download precompiled binary"
             print " 2. Specify the radare2 binary path manually"
             sel = raw_input("> ")
             if sel == "1":
-                radare2 = _downloadRadare()
-                break
+                rad = _downloadRadare()
+                if rad != None:
+                    break
+                print "Precompiled radare2 for your system and/or machine is not avaiable."
             elif sel == "2":
                 rad = raw_input("Insert radare2 path: ")
-                if not os.access(rad, os.X_OK):
-                    print "The file is not accessible. Retry"
-                    continue
-                radare2 = rad
-                break
+                if os.access(rad, os.X_OK):
+                    break
+                print "The file is not accessible. Retry"
+                continue
+    radare2 = rad
     
 
 def populateConfig_idacmd():
@@ -240,5 +245,5 @@ def populate():
     except Exception:
         generateConfig()
 
-populate()
+#populate()
 
