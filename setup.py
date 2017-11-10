@@ -28,6 +28,7 @@ setup(
     packages=['guanciale'],
     install_requires=[
         capstone_pkg,
+        'requests',
         'python-idb',
         'progressbar2',
         'archinfo',

@@ -2,3 +2,4 @@ python-idb
 progressbar2
 archinfo
 pyvex
+requests

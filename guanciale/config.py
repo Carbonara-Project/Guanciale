@@ -8,10 +8,35 @@ __email__ = "andreafioraldi@gmail.com, willownoises@gmail.com"
 import os
 import glob
 import json
+import requests
+import platform
+import shutil
 
 radare2 = None
 idacmd = None
 ida64cmd = None
+
+def _downloadRadare():
+    biname = "radare2"
+    if os.name == "nt":
+        biname += ".exe"
+        
+    url = "https://raw.githubusercontent.com/Carbonara-Project/Carbonara-Downloads/master/" + platform.system() + "/" + binname
+    path = os.path.join(os.path.dirname(__file__), binname)
+    try:
+        out_file = open(path, "wb")
+    except IOError as err:
+        if err.errno == 13: #permission denied
+            print "Permission denied to download radare2 in the app folder, try to run me as root."
+            exit(1)
+        raise err
+    response = requests.get(url, stream=True)
+    shutil.copyfileobj(response.raw, out_file)
+    out_file.close()
+    
+    if os.name == "posix":
+        os.chmod(path, 0755)
+    return path
 
 def populateConfig_radare():
     def inPath(cmd):
@@ -22,12 +47,23 @@ def populateConfig_radare():
         rad += ".exe"
     if not inPath(rad):
         print "!!! RADARE2 NOT FOUND IN PATH !!!"
-        rad = raw_input("Specify the radare2 binary path manually: ")
-        if not os.access(rad, os.X_OK):
-            print "The file is not accessible. Abort."
+        sel = None
+        while True:
             print
-            exit(1)
-    radare2 = rad
+            print " 1. Download precompiled binary
+            print " 2. Specify the radare2 binary path manually"
+            sel = raw_input("> ")
+            if sel == "1":
+                radare2 = _downloadRadare()
+                break
+            elif sel == "2":
+                rad = raw_input("Insert radare2 path: ")
+                if not os.access(rad, os.X_OK):
+                    print "The file is not accessible. Retry"
+                    continue
+                radare2 = rad
+                break
+    
 
 def populateConfig_idacmd():
     global idacmd
@@ -156,7 +192,13 @@ def writeConfig():
         "idacmd": idacmd,
         "ida64cmd": ida64cmd
     }
-    config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_guanciale.config.json"), "w")
+    try:
+        config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_guanciale.config.json"), "w")
+    except IOError as err:
+        if err.errno == 13: #permission denied
+            print "Permission denied to write to the config file, try to run me as root."
+            exit(1)
+        raise err
     json.dump(data, config_file, indent=4)
     config_file.close()
 
