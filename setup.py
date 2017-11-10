@@ -26,5 +26,5 @@ setup(
     url='https://github.com/Carbonara-Project/Guanciale',
     package_dir={'guanciale': 'guanciale'},
     packages=['guanciale'],
-    install_requires=[capstone_pkg, 'python-idb', 'progessbar2']
+    install_requires=[capstone_pkg, 'python-idb', 'progressbar2']
 )
