@@ -24,7 +24,7 @@ def _downloadRadare():
         return None
     files = r.text.split("\n")
     
-    try: os.mkdir(os.path.dirname(__file__), "radare2"))
+    try: os.mkdir(os.path.join(os.path.dirname(__file__), "radare2"))
     except: pass
     
     r2 = None
