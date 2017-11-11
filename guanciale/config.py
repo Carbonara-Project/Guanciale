@@ -29,11 +29,13 @@ def _downloadRadare():
     
     r2 = None
     for filename in files:
+        if filename.strip() == "":
+            continue
         if "radare2" in filename:
             r2 = filename
         
         path = os.path.join(os.path.dirname(__file__), "radare2", filename)
-        url = "https://raw.githubusercontent.com/Carbonara-Project/Carbonara-Downloads/master/" + platform.system() + "/" + filename
+        url = "https://carbonara-project.github.io/Carbonara-Downloads/" + platform.system() + "/" + platform.machine() + "/" + filename
         
         try:
             out_file = open(path, "wb")
@@ -49,7 +51,6 @@ def _downloadRadare():
     if os.name == "posix":
         os.chmod(r2, 0755)
     return r2
-
 def populateConfig_radare():
     def inPath(cmd):
         return any(os.access(os.path.join(path, cmd), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
