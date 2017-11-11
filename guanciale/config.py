@@ -24,6 +24,9 @@ def _downloadRadare():
         return None
     files = r.text.split("\n")
     
+    try: os.mkdir(os.path.dirname(__file__), "radare2"))
+    except: pass
+    
     r2 = None
     for filename in files:
         if "radare2" in filename:
