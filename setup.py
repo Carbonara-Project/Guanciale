@@ -24,6 +24,7 @@ setup(
     author=__author__,
     author_email=__email__,
     url='https://github.com/Carbonara-Project/Guanciale',
+    download_url = 'https://github.com/Carbonara-Project/Guanciale/archive/1.0alpha.tar.gz',
     package_dir={'guanciale': 'guanciale'},
     packages=['guanciale'],
     install_requires=[

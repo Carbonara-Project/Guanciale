@@ -31,10 +31,10 @@ def _downloadRadare():
     for filename in files:
         if filename.strip() == "":
             continue
-        if "radare2" in filename:
-            r2 = filename
         
         path = os.path.join(os.path.dirname(__file__), "radare2", filename)
+        if "radare2" in filename:
+            r2 = path
         url = "https://carbonara-project.github.io/Carbonara-Downloads/" + platform.system() + "/" + platform.machine() + "/" + filename
         
         try:

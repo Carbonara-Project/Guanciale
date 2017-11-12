@@ -126,7 +126,7 @@ class ProcedureHandler(object):
         irsbs = []
 
         for bidx in xrange(len(bb) -1):
-            irsb = pyvex.IRSB(self.code[bb[bidx]:bb[bidx+1]], self.offset + bb[bidx], self.arch)
+            irsb = pyvex.IRSB(self.code[bb[bidx]:bb[bidx+1]], self.offset + bb[bidx], self.arch, opt_level=0)
             irsbs.append(irsb)
         
             stmts = irsb.statements
@@ -215,7 +215,7 @@ class ProcedureHandler(object):
 
         
         for instr in self.insns_list:
-            irsb = pyvex.IRSB(instr, 0, self.arch)
+            irsb = pyvex.IRSB(instr, 0, self.arch, opt_level=0)
             irsbs.append(irsb)
         
             stmts = irsb.statements
