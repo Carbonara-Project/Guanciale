@@ -131,7 +131,11 @@ def populateConfig_idacmd():
         #TODO add native macOS and Linux support
 
         #get wine full path
-        winepath = subprocess.check_output("which wine", shell=True).rstrip()
+        winepath = ""
+        try:
+            winepath = subprocess.check_output("which wine", shell=True).rstrip()
+        except:
+            pass
         if len(winepath) > 0: #wine is in PATH
             prefix = "~/.wine"
             try:
