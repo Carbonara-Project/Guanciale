@@ -247,7 +247,7 @@ def populate():
             populateConfig_radare()
         if "idacmd" in config_json and "ida64cmd" in config_json:
             idacmd = config_json["idacmd"]
-            idacmd = config_json["ida64cmd"]
+            ida64cmd = config_json["ida64cmd"]
         else:
             populateConfig_idacmd()
     except Exception:

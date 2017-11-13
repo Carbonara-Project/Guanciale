@@ -192,16 +192,25 @@ class BinaryInfo(object):
                 try:
                     fcn_name = func['name']
                     asm = func['asm']
-                    fcn_bytes = func['raw_data']
+                    fcn_bytes = base64.b64decode(func['raw_data'])
                     insns_list = []
                     for ins in func['insns_list']:
                         insns_list.append(base64.b64decode(ins))
                     opcodes_list = func['ops']
                     fcn_offset = func['offset']
                     fcn_call_conv = func['callconv']
-                    flow_insns = func['flow_insns']
+                    _flow_insns = func['flow_insns']
+                    flow_insns = []
+                    for fi in flow_insns:
+                        if fi[0] == 0:
+                            call_instr = matching.CallInsn(fi)
+                            flow_insns.append(call_instr)
+                        elif fi[0] == 1:
+                            jump_instr = matching.JumpInsn(fi)
+                            flow_insns.append(jump_instr)
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
+                    print err
                     print "error on function %s, skipped" % func["name"]
                 count += 1
                 bar.update(count)
@@ -320,7 +329,7 @@ class BinaryInfo(object):
                         #check if the instruction is of type 'jump'
                         elif (instr["type"] == "cjmp" or instr["type"] == "jmp") and "jump" in instr:
                             target = instr["jump"]
-                            jumpout = target < fcn_offset or target >= fcn_offset + fcn_size
+                            jumpout = target < fcn_offset or target >= (fcn_offset + fcn_size)
                             jump_instr = matching.JumpInsn(instr["offset"], instr["size"], target, jumpout)
                             flow_insns.append(jump_instr)
                         

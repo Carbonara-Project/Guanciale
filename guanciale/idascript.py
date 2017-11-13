@@ -211,7 +211,7 @@ for func in idautils.Functions():
     
     flow_insns = []
     asm = ''
-    ops = []
+    ops = ''
     insns_list = []
     while cur_addr <= end:
         next_instr = idc.NextHead(cur_addr, end)
@@ -223,7 +223,7 @@ for func in idautils.Functions():
             size = next_instr - cur_addr
 
         #get assembly and comments
-        curr_asm = hex(cur_addr)[:-1] + ' ' + idc.GetDisasm(cur_addr).split(';')[0]
+        curr_asm = idc.GetDisasm(cur_addr).split(';')[0]
         try:
             curr_asm += '   ;' + idc.GetCommentEx(cur_addr, True).replace('\n', ' ')
         except:
@@ -232,7 +232,10 @@ for func in idautils.Functions():
         asm += curr_asm
 
         #get first byte of instruction
-        ops.append(hex(ord(idc.GetManyBytes(cur_addr, 1)))[2:])
+        opc = hex(ord(idc.GetManyBytes(cur_addr, 1)))[2:]
+        if len(opc) < 2:
+            opc = '0'+opc
+        ops += opc
 
         #get instruction bytes
         insns_list.append(base64.b64encode(idc.GetManyBytes(cur_addr, size)))
@@ -252,7 +255,7 @@ for func in idautils.Functions():
                 target = None
                 if op_type == o_near or op_type == o_far:
                     target = idc.LocByName(op)
-                flow_insns.append((cur_addr, size, target, func_name))
+                flow_insns.append((0, cur_addr, size, target, func_name))
             elif mnem.startswith('j'):
                 op = idc.GetOpnd(cur_addr, 0)
                 op_type = idc.GetOpType(cur_addr, 0)
@@ -261,7 +264,8 @@ for func in idautils.Functions():
                 if op_type == o_near or op_type == o_far:
                     target = idc.LocByName(op)
                     jumpout = target  < start or target > end
-                flow_insns.append((cur_addr, size, target, jumpout))
+                flow_insns.append((1, cur_addr, size, target, jumpout))
+        
         elif arch == 'avr':
             if mnem == 'call':
                 op = idc.GetOpnd(cur_addr, 0)
@@ -279,9 +283,8 @@ for func in idautils.Functions():
         elif arch.startswith('arm'):
             if mnem == 'b' or menm == 'bx' or mnem == 'bl':
                 pass
-
+        
         cur_addr = next_instr
-
 
     #get raw data
     raw_data = idc.GetManyBytes(start, end - start)
