@@ -201,12 +201,12 @@ class BinaryInfo(object):
                     fcn_call_conv = func['callconv']
                     _flow_insns = func['flow_insns']
                     flow_insns = []
-                    for fi in flow_insns:
+                    for fi in _flow_insns:
                         if fi[0] == 0:
-                            call_instr = matching.CallInsn(fi)
+                            call_instr = matching.CallInsn(*(fi[1:]))
                             flow_insns.append(call_instr)
                         elif fi[0] == 1:
-                            jump_instr = matching.JumpInsn(fi)
+                            jump_instr = matching.JumpInsn(*(fi[1:]))
                             flow_insns.append(jump_instr)
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:

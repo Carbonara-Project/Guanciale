@@ -248,14 +248,16 @@ for func in idautils.Functions():
             if mnem == 'call':
                 op = idc.GetOpnd(cur_addr, 0)
                 op_type = idc.GetOpType(cur_addr, 0)
+                is_api = False
                 if op[0] == '_': #temp test if api (not 100% reliable)
                     func_name = op[1:]
+                    is_api = True
                 else:
                     func_name = op
                 target = None
                 if op_type == o_near or op_type == o_far:
                     target = idc.LocByName(op)
-                flow_insns.append((0, cur_addr, size, target, func_name))
+                flow_insns.append((0, cur_addr, size, target, func_name, is_api))
             elif mnem.startswith('j'):
                 op = idc.GetOpnd(cur_addr, 0)
                 op_type = idc.GetOpType(cur_addr, 0)
