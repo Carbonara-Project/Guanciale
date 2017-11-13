@@ -7,13 +7,10 @@ __email__ = "andreafioraldi@gmail.com, willownoises@gmail.com"
 
 from setuptools import setup
 import os
+import platform
 
 with open('README.md') as readme_file:
     readme = readme_file.read()
-
-capstone_pkg = "capstone"
-if os.name == 'nt':
-    capstone_pkg = "capstone-windows"
 
 setup(
     name='guanciale',
@@ -26,12 +23,13 @@ setup(
     url='https://github.com/Carbonara-Project/Guanciale',
     download_url = 'https://github.com/Carbonara-Project/Guanciale/archive/1.0alpha.tar.gz',
     package_dir={'guanciale': 'guanciale'},
+    dependency_links=pyvex_wheel,
     packages=['guanciale'],
     install_requires=[
-        capstone_pkg,
-        'requests',
-        'python-idb',
-        'archinfo',
-        'pyvex'
+            "capstone",
+            'requests',
+            'python-idb',
+            'archinfo',
+            'pyvex'
     ]
 )
