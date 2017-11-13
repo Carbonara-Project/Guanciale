@@ -1,0 +1,5 @@
+capstone-windows
+python-idb
+archinfo
+https://github.com/Carbonara-Project/Carbonara-Downloads/blob/master/pyvex-7.7.9.14-py2-none-win_amd64.whl
+requests
