@@ -23,7 +23,6 @@ setup(
     url='https://github.com/Carbonara-Project/Guanciale',
     download_url = 'https://github.com/Carbonara-Project/Guanciale/archive/1.0alpha.tar.gz',
     package_dir={'guanciale': 'guanciale'},
-    dependency_links=pyvex_wheel,
     packages=['guanciale'],
     install_requires=[
             "capstone",

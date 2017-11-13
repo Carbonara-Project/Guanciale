@@ -186,7 +186,7 @@ class BinaryInfo(object):
 
         print "6: getting assembly and other info about each procedure..."
         
-        with status.Status(len(funcs_dict)) as bar:
+        with status.Status(len(data['procedures'])) as bar:
             count = 0
             for func in data['procedures']:
                 try:

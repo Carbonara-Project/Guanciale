@@ -64,7 +64,7 @@ def archFromR2(arch, bits, endian):
     return a(archinfo.Endness.LE)
 
 def archFromIda(processor, bits, endian):
-    a = ida_arch_map[(arch, bits)]
+    a = ida_arch_map[(processor, bits)]
     if endian != "little":
         return a(archinfo.Endness.BE)
     return a(archinfo.Endness.LE)
