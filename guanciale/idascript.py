@@ -61,6 +61,49 @@ class_map = {
     25: 'MACHO'        # Max OS X
 }
 
+def addToInsnsFlow(mnem, cur_addr, arch, flow_insns):
+    if arch == 'metapc':
+        if mnem == 'call':
+            op = idc.GetOpnd(cur_addr, 0)
+            op_type = idc.GetOpType(cur_addr, 0)
+            if op[0] == '_': #temp test if api (not 100% reliable)
+                func_name = op[1:]
+            else:
+                func_name = op
+            target = None
+            if op_type == o_near or op_type == o_far:
+                target = idc.LocByName(op)
+            flow_insns.append((cur_addr, size, target, func_name))
+        elif mnem.startswith('j'):
+            op = idc.GetOpnd(cur_addr, 0)
+            op_type = idc.GetOpType(cur_addr, 0)
+            target = None
+            jumpout = None
+            if op_type == o_near or op_type == o_far:
+                target = idc.LocByName(op)
+                jumpout = target  < start or target > end
+            flow_insns.append((cur_addr, size, target, jumpout))
+
+    elif arch == 'avr':
+        if mnem == 'call':
+            op = idc.GetOpnd(cur_addr, 0)
+        elif mnem.startswith('br'):
+            pass
+
+    elif arch.startswith('ppc'):
+        if menm.startswith('b'):
+            pass
+
+    elif arch.startswith('mips'):
+        if mnem.startswith('b'):
+            pass
+        elif menm.startswith('j'):
+            pass
+
+    elif arch.startswith('arm'):
+        if mnem == 'b' or menm == 'bx' or mnem == 'bl':
+            pass
+
 #wait for IDA analysys to complete
 idaapi.autoWait()
 
@@ -122,7 +165,7 @@ for exp in list(idautils.Entries()):
     e = {
         'name': exp[3],
         'addr': exp[1],
-        'size': None #TODO
+        'size': 0 #Hardcoded to 0 until we figure out what the 'size' info actually is
     }
     data['exports'].append(e)
 
@@ -138,7 +181,7 @@ for func in idautils.Functions():
     name = idc.GetFunctionName(func)
 
     #get procedure callconv
-    func_info = idc.GetType(start)
+    func_info = idc.GetType(func)
     if func_info != None and 'cdecl' in func_info:
         callconv = 'cdecl'
     elif func_info != None and 'ellipsis' in func_info:
@@ -196,26 +239,46 @@ for func in idautils.Functions():
 
         #add to flow_insns if call or jump
         mnem = idc.GetMnem(cur_addr)
-        if mnem == 'call':
-            op = idc.GetOpnd(cur_addr, 0)
-            op_type = idc.GetOpType(cur_addr, 0)
-            if op[0] == '_': #temp test if api (not 100% reliable)
-                func_name = op[1:]
-            else:
-                func_name = op
-            target = None
-            if op_type == o_near or op_type == o_far:
-                target = idc.LocByName(op)
-            flow_insns.append((cur_addr, size, target, func_name))
-        elif mnem.startswith('j'):
-            op = idc.GetOpnd(cur_addr, 0)
-            op_type = idc.GetOpType(cur_addr, 0)
-            target = None
-            jumpout = None
-            if op_type == o_near or op_type == o_far:
-                target = idc.LocByName(op)
-                jumpout = target  < start or target > end
-            flow_insns.append((cur_addr, size, target, jumpout))
+        #check architecture
+        arch = data['info']['arch']
+        if arch == 'metapc':
+            if mnem == 'call':
+                op = idc.GetOpnd(cur_addr, 0)
+                op_type = idc.GetOpType(cur_addr, 0)
+                if op[0] == '_': #temp test if api (not 100% reliable)
+                    func_name = op[1:]
+                else:
+                    func_name = op
+                target = None
+                if op_type == o_near or op_type == o_far:
+                    target = idc.LocByName(op)
+                flow_insns.append((cur_addr, size, target, func_name))
+            elif mnem.startswith('j'):
+                op = idc.GetOpnd(cur_addr, 0)
+                op_type = idc.GetOpType(cur_addr, 0)
+                target = None
+                jumpout = None
+                if op_type == o_near or op_type == o_far:
+                    target = idc.LocByName(op)
+                    jumpout = target  < start or target > end
+                flow_insns.append((cur_addr, size, target, jumpout))
+        elif arch == 'avr':
+            if mnem == 'call':
+                op = idc.GetOpnd(cur_addr, 0)
+                pass
+            elif mnem.startswith('br'):
+                pass
+        elif arch.startswith('ppc'):
+            if menm.startswith('b'):
+                pass
+        elif arch.startswith('mips'):
+            if mnem.startswith('b'):
+                pass
+            elif menm.startswith('j'):
+                pass
+        elif arch.startswith('arm'):
+            if mnem == 'b' or menm == 'bx' or mnem == 'bl':
+                pass
 
         cur_addr = next_instr
 
