@@ -21,22 +21,6 @@ r2_arch_map = {
     ("x86", 32): archinfo.ArchX86
 }
 
-''' HOW TO GET ARCH IN IDAPYTHON?
-import idaapi
-
-info = idaapi.get_inf_structure()
-
-if info.is_64bit():
-    bits = 64
-elif info.is_32bit():
-    bits = 32
-else:
-    bits = 16
-
-endian = "little"
-if info.mf:
-    endian = "big"
-'''
 
 ida_arch_map = {
     ("arm", 64): archinfo.ArchAArch64,
@@ -116,7 +100,6 @@ class ProcedureHandler(object):
 
         bb.sort()
         bb.append(self.offset + self.size)
-
         consts = {}
         ips = []
         vex_code = ""
@@ -295,7 +278,8 @@ class ProcedureHandler(object):
     def lift(self):
         try:
             self.liftByBlocks()
-        except pyvex.errors.PyVEXError:
+        except pyvex.errors.PyVEXError as err:
+            #print err
             self.liftByInsns()       
 
 

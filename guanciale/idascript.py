@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: cp1252 -*-
 
 __author__ = "Andrea Fioraldi, Luigi Paolo Pileggi"
 __copyright__ = "Copyright 2017, Carbonara Project"
@@ -257,7 +258,7 @@ for func in idautils.Functions():
                 target = None
                 if op_type == o_near or op_type == o_far:
                     target = idc.LocByName(op)
-                flow_insns.append((0, cur_addr, size, target, func_name, is_api))
+                    flow_insns.append((0, cur_addr, size, target, func_name, is_api))
             elif mnem.startswith('j'):
                 op = idc.GetOpnd(cur_addr, 0)
                 op_type = idc.GetOpType(cur_addr, 0)
@@ -266,7 +267,9 @@ for func in idautils.Functions():
                 if op_type == o_near or op_type == o_far:
                     target = idc.LocByName(op)
                     jumpout = target  < start or target > end
-                flow_insns.append((1, cur_addr, size, target, jumpout))
+                    #non mi puoi passare JumpInsns con i None
+                    #se è una jump a registro, saltala
+                    flow_insns.append((1, cur_addr, size, target, jumpout))
         
         elif arch == 'avr':
             if mnem == 'call':

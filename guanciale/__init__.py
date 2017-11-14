@@ -165,7 +165,11 @@ class BinaryInfo(object):
         #getting data from idascript via json
         idadump = open('dump.json', 'r')
         data = json.load(idadump)
+        idadump.close()
 
+        #clean up
+        os.remove('dump.json')
+        
         print "2: getting file properties..."
         self.data['info'] = data['info']
 
@@ -207,18 +211,14 @@ class BinaryInfo(object):
                             flow_insns.append(call_instr)
                         elif fi[0] == 1:
                             jump_instr = matching.JumpInsn(*(fi[1:]))
-                            flow_insns.append(jump_instr)
+                            flow_insns.append(jump_instr)               
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
-                    print err
                     print "error on function %s, skipped" % func["name"]
                 count += 1
                 bar.update(count)
 
-        idadump.close()
-
-        #clean up
-        os.remove('dump.json')
+        
 
     def _r2Task(self):
         '''
