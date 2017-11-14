@@ -14,14 +14,14 @@ with open('README.md') as readme_file:
 
 setup(
     name='guanciale',
-    version="1.0alpha",
+    version="1.0.1",
     license=__license__,
     description='Grab information needed by Carbonara',
     long_description=readme,
     author=__author__,
     author_email=__email__,
     url='https://github.com/Carbonara-Project/Guanciale',
-    download_url = 'https://github.com/Carbonara-Project/Guanciale/archive/1.0alpha.tar.gz',
+    download_url = 'https://github.com/Carbonara-Project/Guanciale/archive/1.0.1.tar.gz',
     package_dir={'guanciale': 'guanciale'},
     packages=['guanciale'],
     install_requires=[
