@@ -196,9 +196,16 @@ class ProcedureHandler(object):
         regs = {}
         irsbs = []
 
-        
         for instr in self.insns_list:
-            irsb = pyvex.IRSB(instr, 0, self.arch, opt_level=0)
+            #manage instruction not recognized by libVEX
+            if instr == "\xf4" and (self.arch.name == "X86" or self.arch.name == "AMD64"): #hlt x86 instruction
+                irsbs.append("HALT")
+                continue
+            try:
+                irsb = pyvex.IRSB(instr, 0, self.arch, opt_level=0)
+            except pyvex.errors.PyVEXError as err:
+                print "Error with instruction " + instr.encode("hex")
+                raise err
             irsbs.append(irsb)
         
             stmts = irsb.statements
@@ -242,6 +249,10 @@ class ProcedureHandler(object):
             addrs[ips[i]] = i
         
         for irsb in irsbs:
+            if type(irsb) == type(""):
+                vex_code += irsb + "\n"
+                continue
+            
             stmts = irsb.statements
                      
             for i in xrange(len(stmts)):
