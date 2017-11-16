@@ -9,15 +9,11 @@ from setuptools import setup
 import os
 import platform
 
-with open('README.md') as readme_file:
-    readme = readme_file.read()
-
 setup(
     name='guanciale',
     version="1.0.1",
     license=__license__,
     description='Grab information needed by Carbonara',
-    long_description=readme,
     author=__author__,
     author_email=__email__,
     url='https://github.com/Carbonara-Project/Guanciale',
