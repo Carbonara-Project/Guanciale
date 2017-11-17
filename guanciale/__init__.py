@@ -207,11 +207,9 @@ class BinaryInfo(object):
                     jump_insns = func['jump_insns']
                     flow_insns = []
                     for ci in call_insns:
-                        print ci[3], str(ci[4])
                         call_instr = matching.CallInsn(*(ci))
                         flow_insns.append(call_instr)
                     for ji in jump_insns:
-                        print hex(ji[0])
                         jump_instr = matching.JumpInsn(*(ji))
                         flow_insns.append(jump_instr)             
 

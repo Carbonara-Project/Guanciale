@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: cp1252 -*-
 
 __author__ = "Andrea Fioraldi, Luigi Paolo Pileggi"
 __copyright__ = "Copyright 2017, Carbonara Project"
