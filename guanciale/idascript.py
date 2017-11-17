@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: cp1252 -*-
 
 __author__ = "Andrea Fioraldi, Luigi Paolo Pileggi"
 __copyright__ = "Copyright 2017, Carbonara Project"
@@ -244,12 +245,12 @@ for func in idautils.Functions():
             elif mnem.startswith('br'):
                 pass
         elif arch.startswith('ppc'):
-            if menm.startswith('b'):
+            if mnem.startswith('b'):
                 pass
         elif arch.startswith('mips'):
             if mnem.startswith('b'):
                 pass
-            elif menm.startswith('j'):
+            elif mnem.startswith('j'):
                 pass
         elif arch.startswith('arm'):
             if mnem == 'b' or menm == 'bx' or mnem == 'bl':
