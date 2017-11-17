@@ -165,7 +165,11 @@ class BinaryInfo(object):
         #getting data from idascript via json
         idadump = open('dump.json', 'r')
         data = json.load(idadump)
+        idadump.close()
 
+        #clean up
+        os.remove('dump.json')
+        
         print "2: getting file properties..."
         self.data['info'] = data['info']
 
@@ -199,26 +203,34 @@ class BinaryInfo(object):
                     opcodes_list = func['ops']
                     fcn_offset = func['offset']
                     fcn_call_conv = func['callconv']
-                    _flow_insns = func['flow_insns']
+                    call_insns = func['call_insns']
+                    jump_insns = func['jump_insns']
                     flow_insns = []
-                    for fi in flow_insns:
+<<<<<<< HEAD
+                    for ci in call_insns:
+                        print ci[3], str(ci[4])
+                        call_instr = matching.CallInsn(*(ci))
+                        flow_insns.append(call_instr)
+                    for ji in jump_insns:
+                        print hex(ji[0])
+                        jump_instr = matching.JumpInsn(*(ji))
+                        flow_insns.append(jump_instr)
+=======
+                    for fi in _flow_insns:
                         if fi[0] == 0:
-                            call_instr = matching.CallInsn(fi)
+                            call_instr = matching.CallInsn(*(fi[1:]))
                             flow_insns.append(call_instr)
                         elif fi[0] == 1:
-                            jump_instr = matching.JumpInsn(fi)
-                            flow_insns.append(jump_instr)
+                            jump_instr = matching.JumpInsn(*(fi[1:]))
+                            flow_insns.append(jump_instr)               
+>>>>>>> c29eb7438d93b6ce3e15e0b93757eaff31fe205f
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
-                    print err
                     print "error on function %s, skipped" % func["name"]
                 count += 1
                 bar.update(count)
 
-        idadump.close()
-
-        #clean up
-        os.remove('dump.json')
+        
 
     def _r2Task(self):
         '''
