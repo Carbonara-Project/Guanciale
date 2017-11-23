@@ -3,7 +3,7 @@
 __author__ = "Andrea Fioraldi, Luigi Paolo Pileggi"
 __copyright__ = "Copyright 2017, Carbonara Project"
 __license__ = "BSD 2-clause"
-__email__ = "andreafioraldi@gmail.com, willownoises@gmail.com"
+__email__ = "andreafioraldi@gmail.com, rop2bash@gmail.com"
 
 import json
 import base64
@@ -18,6 +18,8 @@ import status
 import idb
 import config
 import matching
+import random
+import string
 import subprocess
 
 class ArchNotSupported(RuntimeError):
@@ -153,22 +155,28 @@ class BinaryInfo(object):
              raise NotImplementedError() #parse idb without calling IDA
 
         print "2: Waiting for IDA to parse database (this may take several minutes)..."
+
+        #.json name
+        binname = os.path.splitext(filename)[0]
+        rand = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(5))
+        dumpname = '.'+binname+ '-'+ rand +'-dump.json'
+
         file_ext = os.path.splitext(filename)[1]
         if file_ext == '.idb':
-            process = subprocess.Popen(config.idacmd + ' -A -S"' + os.path.join(os.path.dirname(__file__), "idascript.py") + '" ' + filename)
+            process = subprocess.Popen(config.idacmd + ' -A -S"' + os.path.join(os.path.dirname(__file__), "idascript.py ")+ dumpname +'" ' + filename)
         elif file_ext == '.i64':
-            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + os.path.join(os.path.dirname(__file__), "idascript.py") + '" ' + filename)
+            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + os.path.join(os.path.dirname(__file__), "idascript.py ")+ dumpname +'" ' + filename)
         else:
             raise RuntimeError('file not supported')
         process.wait()
 
         #getting data from idascript via json
-        idadump = open('dump.json', 'r')
+        idadump = open(dumpname, 'r')
         data = json.load(idadump)
         idadump.close()
 
         #clean up
-        os.remove('dump.json')
+        os.remove(dumpname)
         
         print "2: getting file properties..."
         self.data['info'] = data['info']

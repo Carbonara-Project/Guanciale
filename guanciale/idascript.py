@@ -3,7 +3,7 @@
 __author__ = "Andrea Fioraldi, Luigi Paolo Pileggi"
 __copyright__ = "Copyright 2017, Carbonara Project"
 __license__ = "BSD 2-clause"
-__email__ = "andreafioraldi@gmail.com, willownoises@gmail.com"
+__email__ = "andreafioraldi@gmail.com, rop2bash@gmail.com"
 
 import idautils
 import idaapi
@@ -30,7 +30,26 @@ procedures:
 imports | OK
 exports | OK
 libs | OK
+
+architectures:
+    x86/64 | OK
+    avr | TODO
+    powerpc | TODO
+    mips | TODO
+    arm | TODO
 '''
+
+def checkFlow(arch):
+    if arch == 'metapc':
+        return (mnem == 'call', mnem.startswith('j'))
+    elif arch == 'avr':
+        return (mnem == 'call', mnem.startswith('br'))
+    elif arch.startswith('ppc'):
+        return (None, mnem.startswith('b'))
+    elif arch.startswith('mips'):
+        return (mnem.startswith('b'), mnem.startswith('j'))
+    elif arch.startswith('arm'):
+        return (None, mnem == 'b' or menm == 'bx' or mnem == 'bl')
 
 class_map = {
     0:  'EXE_old',     # MS DOS EXE File
@@ -58,14 +77,15 @@ class_map = {
     22: 'EXE',         # MS DOS EXE File
     23: 'COM',         # MS DOS COM File
     24: 'AIXAR',       # AIX ar library
-    25: 'MACHO'        # Max OS X
+    25: 'MACHO'        # Mac OS X
 }
 
 #wait for IDA analysys to complete
 idaapi.autoWait()
 
 #json to communicate with main process
-dump = open('dump.json', 'w')
+dumpname = idc.ARGV[1]
+dump = open(dumpname, 'w')
 
 data = {
     'info' : { #TODO
@@ -202,58 +222,39 @@ for func in idautils.Functions():
         #add to flow_insns if call or jump
         mnem = idc.GetMnem(cur_addr)
         #check architecture
-        arch = data['info']['arch']
-        if arch == 'metapc':
-            if mnem == 'call':
-                op = idc.GetOpnd(cur_addr, 0)
-                op_type = idc.GetOpType(cur_addr, 0)
-                if (op_type == o_near or op_type == o_far or op_type == o_mem) and op_type != o_reg:
-                    isApi = False
-                    for imp in data['imports']:
-                        if isApi:
+        call_check, jump_check = checkFlow(data['info']['arch'])
+        if call_check:
+            op = idc.GetOpnd(cur_addr, 0)
+            op_type = idc.GetOpType(cur_addr, 0)
+            if (op_type == o_near or op_type == o_far or op_type == o_mem) and op_type != o_reg:
+                isApi = False
+                for imp in data['imports']:
+                    if isApi:
+                        break
+                    if op == '_' + imp['name']:
+                            isApi = True
+                            op = imp['name']
+                            target = imp['addr']
                             break
-                        if op == '_' + imp['name']:
-                                isApi = True
-                                op = imp['name']
-                                target = imp['addr']
-                                break
-                        for addr in idautils.CodeRefsTo(imp['addr'], 1):
-                            if addr == cur_addr:
-                                isApi = True
-                                op = imp['name']
-                                target = imp['addr']
-                                break
-                    if not isApi:
-                        target = None
-                        target = idc.LocByName(op)
-                    call_insns.append((cur_addr, size, target, op, isApi))
-            elif mnem.startswith('j'):
-                op = idc.GetOpnd(cur_addr, 0)
-                op_type = idc.GetOpType(cur_addr, 0)
-                if (op_type == o_near or op_type == o_far) and op_type != o_reg:
+                    for addr in idautils.CodeRefsTo(imp['addr'], 1):
+                        if addr == cur_addr:
+                            isApi = True
+                            op = imp['name']
+                            target = imp['addr']
+                            break
+                if not isApi:
                     target = None
-                    jumpout = None
                     target = idc.LocByName(op)
-                    jumpout = target  < start or target > end
-                    jump_insns.append((cur_addr, size, target, jumpout))
-        
-        elif arch == 'avr':
-            if mnem == 'call':
-                op = idc.GetOpnd(cur_addr, 0)
-                pass
-            elif mnem.startswith('br'):
-                pass
-        elif arch.startswith('ppc'):
-            if mnem.startswith('b'):
-                pass
-        elif arch.startswith('mips'):
-            if mnem.startswith('b'):
-                pass
-            elif mnem.startswith('j'):
-                pass
-        elif arch.startswith('arm'):
-            if mnem == 'b' or menm == 'bx' or mnem == 'bl':
-                pass
+                call_insns.append((cur_addr, size, target, op, isApi))
+        elif jump_check:
+            op = idc.GetOpnd(cur_addr, 0)
+            op_type = idc.GetOpType(cur_addr, 0)
+            if (op_type == o_near or op_type == o_far) and op_type != o_reg:
+                target = None
+                jumpout = None
+                target = idc.LocByName(op)
+                jumpout = target  < start or target > end
+                jump_insns.append((cur_addr, size, target, jumpout))
         
         cur_addr = next_instr
 
