@@ -39,17 +39,17 @@ architectures:
     arm | TODO
 '''
 
-def checkFlow(arch):
+def checkFlow(arch, mnem):
     if arch == 'metapc':
-        return (mnem == 'call', mnem.startswith('j'))
+        return mnem == 'call', mnem.startswith('j')
     elif arch == 'avr':
-        return (mnem == 'call', mnem.startswith('br'))
+        return mnem == 'call', mnem.startswith('br')
     elif arch.startswith('ppc'):
-        return (None, mnem.startswith('b'))
+        return False, mnem.startswith('b')
     elif arch.startswith('mips'):
-        return (mnem.startswith('b'), mnem.startswith('j'))
+        return mnem.startswith('b'), mnem.startswith('j')
     elif arch.startswith('arm'):
-        return (None, mnem == 'b' or menm == 'bx' or mnem == 'bl')
+        return False, mnem == 'b' or menm == 'bx' or mnem == 'bl'
 
 class_map = {
     0:  'EXE_old',     # MS DOS EXE File
@@ -88,7 +88,7 @@ dumpname = idc.ARGV[1]
 dump = open(dumpname, 'w')
 
 data = {
-    'info' : { #TODO
+    'info' : {
         'program_class': None,
         'arch': None,
         'bits': None,
@@ -220,9 +220,7 @@ for func in idautils.Functions():
         insns_list.append(base64.b64encode(idc.GetManyBytes(cur_addr, size)))
 
         #add to flow_insns if call or jump
-        mnem = idc.GetMnem(cur_addr)
-        #check architecture
-        call_check, jump_check = checkFlow(data['info']['arch'])
+        call_check, jump_check = checkFlow(data['info']['arch'], idc.GetMnem(cur_addr))
         if call_check:
             op = idc.GetOpnd(cur_addr, 0)
             op_type = idc.GetOpType(cur_addr, 0)
