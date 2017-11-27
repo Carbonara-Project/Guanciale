@@ -15,6 +15,7 @@ import shutil
 radare2 = None
 idacmd = None
 ida64cmd = None
+usewine = False
 
 def _downloadRadare():
     url = "https://carbonara-project.github.io/Carbonara-Downloads/" + platform.system() + "/" + platform.machine() + "/files.txt"
@@ -157,18 +158,22 @@ def populateConfig_idacmd():
                         if os.path.isfile(d + "/idat.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idat.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idat64.exe'"
+                            usewine = True
                             return
                         elif os.path.isfile(d + "/idaw.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaw.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaw64.exe'"
+                            usewine = True
                             return
                         elif os.path.isfile(d + "/ida.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida64.exe'"
+                            usewine = True
                             return
                         elif os.path.isfile(d + "/idaq.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq64.exe'"
+                            usewine = True
                             return
             #get ProgramFiles from wine
             try:
@@ -185,18 +190,22 @@ def populateConfig_idacmd():
                         if os.path.isfile(d + "/idat.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idat.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idat64.exe'"
+                            usewine = True
                             return
                         elif os.path.isfile(d + "/idaw.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaw.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaw64.exe'"
+                            usewine = True
                             return
                         elif os.path.isfile(d + "/ida.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/ida64.exe'"
+                            usewine = True
                             return
                         elif os.path.isfile(d + "/idaq.exe"):
                             idacmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq.exe'"
                             ida64cmd = "env WINEPREFIX='" + prefix + "' " + winepath + " '" + d + "/idaq64.exe'"
+                            usewine = True
                             return
     #IDA pro not found
     idacmd = None
@@ -207,10 +216,12 @@ def writeConfig():
     global radare2
     global idacmd
     global ida64cmd
+    global usewine
     data = {
         "radare2": radare2,
         "idacmd": idacmd,
-        "ida64cmd": ida64cmd
+        "ida64cmd": ida64cmd,
+        "usewine": usewine
     }
     try:
         config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_guanciale.config.json"), "w")
@@ -223,9 +234,6 @@ def writeConfig():
     config_file.close()
 
 def generateConfig():
-    global radare2
-    global idacmd
-    global ida64cmd
     print "Generating config file..."
     populateConfig_radare()
     populateConfig_idacmd()
@@ -235,6 +243,7 @@ def populate():
     global radare2
     global idacmd
     global ida64cmd
+    global usewine
     
     #read config file
     try:
@@ -245,9 +254,10 @@ def populate():
             radare2 = config_json["radare2"]
         else:
             populateConfig_radare()
-        if "idacmd" in config_json and "ida64cmd" in config_json:
+        if "idacmd" in config_json and "ida64cmd" in config_json and "usewine" in config_json:
             idacmd = config_json["idacmd"]
             ida64cmd = config_json["ida64cmd"]
+            usewine = config_json["usewine"]
         else:
             populateConfig_idacmd()
     except Exception:

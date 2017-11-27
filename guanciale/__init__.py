@@ -162,13 +162,16 @@ class BinaryInfo(object):
         dumpname = '.'+binname+ '-'+ rand +'-dump.json'
 
         file_ext = os.path.splitext(filename)[1]
+        idascript = os.path.join(os.path.dirname(__file__), "idascript.py ")
+        if config.usewine:
+            idascript.replace(os.path.sep, "\\")
+        
         if file_ext == '.idb':
-            process = subprocess.Popen(config.idacmd + ' -A -S"' + os.path.join(os.path.dirname(__file__), "idascript.py ")+ dumpname +'" ' + filename)
+            os.system(config.idacmd + ' -A -S"' + idascript + " " + dumpname +'" ' + filename)
         elif file_ext == '.i64':
-            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + os.path.join(os.path.dirname(__file__), "idascript.py ")+ dumpname +'" ' + filename)
+            os.system(config.ida64cmd + ' -A -S"' + idascript + " " + dumpname +'" ' + filename)
         else:
             raise RuntimeError('file not supported')
-        process.wait()
 
         #getting data from idascript via json
         idadump = open(dumpname, 'r')
