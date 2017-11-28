@@ -121,7 +121,8 @@ class BinaryInfo(object):
             "asm": asm,
             "offset": offset,
             "callconv": callconv,
-            "apicalls": handler.api
+            "apicalls": handler.api,
+            "arch": self.arch.name
         }
 
         proc["hash1"] = handler.api_hash.encode("hex")
@@ -163,15 +164,17 @@ class BinaryInfo(object):
 
         file_ext = os.path.splitext(filename)[1]
         idascript = os.path.join(os.path.dirname(__file__), "idascript.py ")
+        
         if config.usewine:
             idascript.replace(os.path.sep, "\\")
         
         if file_ext == '.idb':
-            os.system(config.idacmd + ' -A -S"' + idascript + " " + dumpname +'" ' + filename)
+            process = subprocess.Popen('"'+ config.idacmd + '" -A -S"' + idascript + dumpname +'" ' + filename, shell=True)
         elif file_ext == '.i64':
-            os.system(config.ida64cmd + ' -A -S"' + idascript + " " + dumpname +'" ' + filename)
+            process = subprocess.Popen('"'+ config.ida64cmd + '" -A -S"' + idascript + dumpname +'" ' + filename, shell=True)
         else:
             raise RuntimeError('file not supported')
+        process.wait()
 
         #getting data from idascript via json
         idadump = open(dumpname, 'r')
