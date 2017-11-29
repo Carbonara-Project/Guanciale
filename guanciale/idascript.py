@@ -36,21 +36,8 @@ architectures:
     avr | TODO
     powerpc | TODO
     mips | TODO
-    arm | TODO
+    arm | OK
 '''
-
-def checkFlow(arch, mnem):
-    if arch == 'metapc':
-        return mnem == 'call', mnem.startswith('j')
-    elif arch == 'avr':
-        return mnem == 'call', mnem.startswith('br')
-    elif arch.startswith('ppc'):
-        return False, mnem.startswith('b')
-    elif arch.startswith('mips'):
-        return mnem.startswith('b'), mnem.startswith('j')
-    elif arch.startswith('arm'):
-        return False, mnem == 'b' or menm == 'bx' or mnem == 'bl'
-
 class_map = {
     0:  'EXE_old',     # MS DOS EXE File
     1:  'COM_old',     # MS DOS COM File
@@ -80,13 +67,6 @@ class_map = {
     25: 'MACHO'        # Mac OS X
 }
 
-#wait for IDA analysys to complete
-idaapi.autoWait()
-
-#json to communicate with main process
-dumpname = idc.ARGV[1]
-dump = open(dumpname, 'w')
-
 data = {
     'info' : {
         'program_class': None,
@@ -100,11 +80,104 @@ data = {
     'libs': []
 }
 
+def imp_cb(ea, name, ord): #call-back function required by idaapi.enum_import_names()
+    i = {
+        'name': name,
+        'addr': ea
+    }
+    data['imports'].append(i)
+    return True
+
+def getCallConv(func_info):
+    if func_info != None and 'cdecl' in func_info:
+       return 'cdecl'
+    elif func_info != None and 'ellipsis' in func_info:
+       return 'ellipsis'
+    elif func_info != None and 'stdcall' in func_info:
+       return 'stdcall'
+    elif func_info != None and 'pascal' in func_info:
+       return 'pascal'
+    elif func_info != None and 'fastcall' in func_info:
+       return 'fastcall'
+    elif func_info != None and 'thiscall' in func_info:
+       return 'thiscall'
+    elif func_info != None and 'manual' in func_info:
+       return 'manual'
+    elif func_info != None and 'speciale' in func_info:
+       return 'speciale'
+    elif func_info != None and 'specialp' in func_info:
+       return 'specialp'
+    elif func_info != None and 'special' in func_info:
+       return 'special'
+    else:
+       return ''
+
+def metapcFlow(call_check, jump_check, jump_insns, call_insns):
+    if call_check:
+        op = idc.GetOpnd(cur_addr, 0)
+        op_type = idc.GetOpType(cur_addr, 0)
+        if (op_type == o_near or op_type == o_far or op_type == o_mem) and op_type != o_reg:
+            isApi = False
+            for imp in data['imports']:
+                if isApi:
+                    break
+                if op == '_' + imp['name'] or op == imp['name']:
+                        isApi = True
+                        op = imp['name']
+                        target = imp['addr']
+                        break
+                for addr in idautils.CodeRefsTo(imp['addr'], 1):
+                    if addr == cur_addr:
+                        isApi = True
+                        op = imp['name']
+                        target = imp['addr']
+                        break
+            if not isApi:
+                target = None
+                target = idc.LocByName(op)
+            call_insns.append((cur_addr, size, target, op, isApi))
+    elif jump_check:
+        op = idc.GetOpnd(cur_addr, 0)
+        op_type = idc.GetOpType(cur_addr, 0)
+        if (op_type == o_near or op_type == o_far) and op_type != o_reg:
+            target = None
+            jumpout = None
+            target = idc.LocByName(op)
+            jumpout = target  < start or target > end
+            jump_insns.append((cur_addr, size, target, jumpout))
+
+def avrFlow():
+    pass
+def ppcFlow():
+    pass
+def mipsFlow():
+    pass
+armFlow = metapcFlow
+
+def checkFlow(arch, mnem):
+    if arch == 'metapc':
+        return mnem == 'call', mnem.startswith('j'), metapcFlow
+    elif arch == 'avr':
+        return mnem == 'call', mnem.startswith('br'), avrFlow
+    elif arch.startswith('ppc'):
+        return False, mnem.startswith('b'), ppcFlow
+    elif arch.startswith('mips'):
+        return mnem.startswith('b'), mnem.startswith('j'), mipsFlow
+    elif arch.startswith('arm'):
+        return mnem.startswith('BL'), mnem.startswith('B') and not mnem.startswith('BL'), armFlow
+
+#wait for IDA analysys to complete
+idaapi.autoWait()
+
+#json to communicate with main process
+dumpname = idc.ARGV[1]
+dump = open(dumpname, 'w')
+
 #get info
 info = idaapi.get_inf_structure()
 
 #get arch
-data['info']['arch'] = info.procName
+data['info']['arch'] = info.procName.lower()
 
 #get bits
 if info.is_64bit():
@@ -123,14 +196,6 @@ if info.is_be():
 data['info']['program_class'] = class_map[info.filetype]
 
 #get imports and dlls
-def imp_cb(ea, name, ord): #call-back function required by idaapi.enum_import_names()
-    i = {
-        'name': name,
-        'addr': ea
-    }
-    data['imports'].append(i)
-    return True
-
 nimps = idaapi.get_import_module_qty()
 for i in xrange(0, nimps):
     dllname = idaapi.get_import_module_name(i)
@@ -159,28 +224,7 @@ for func in idautils.Functions():
 
     #get procedure callconv
     func_info = idc.GetType(func)
-    if func_info != None and 'cdecl' in func_info:
-        callconv = 'cdecl'
-    elif func_info != None and 'ellipsis' in func_info:
-        callconv = 'ellipsis'
-    elif func_info != None and 'stdcall' in func_info:
-        callconv = 'stdcall'
-    elif func_info != None and 'pascal' in func_info:
-        callconv = 'pascal'
-    elif func_info != None and 'fastcall' in func_info:
-        callconv = 'fastcall'
-    elif func_info != None and 'thiscall' in func_info:
-        callconv = 'thiscall'
-    elif func_info != None and 'manual' in func_info:
-        callconv = 'manual'
-    elif func_info != None and 'speciale' in func_info:
-        callconv = 'speciale'
-    elif func_info != None and 'specialp' in func_info:
-        callconv = 'specialp'
-    elif func_info != None and 'special' in func_info:
-        callconv = 'special'
-    else:
-        callconv = ''
+    callconv = getCallConv(func_info)
     
     start = idc.GetFunctionAttr(func, FUNCATTR_START)
     end = idc.GetFunctionAttr(func, FUNCATTR_END)
@@ -218,41 +262,12 @@ for func in idautils.Functions():
 
         #get instruction bytes
         insns_list.append(base64.b64encode(idc.GetManyBytes(cur_addr, size)))
-
+        
         #add to flow_insns if call or jump
-        call_check, jump_check = checkFlow(data['info']['arch'], idc.GetMnem(cur_addr))
-        if call_check:
-            op = idc.GetOpnd(cur_addr, 0)
-            op_type = idc.GetOpType(cur_addr, 0)
-            if (op_type == o_near or op_type == o_far or op_type == o_mem) and op_type != o_reg:
-                isApi = False
-                for imp in data['imports']:
-                    if isApi:
-                        break
-                    if op == '_' + imp['name']:
-                            isApi = True
-                            op = imp['name']
-                            target = imp['addr']
-                            break
-                    for addr in idautils.CodeRefsTo(imp['addr'], 1):
-                        if addr == cur_addr:
-                            isApi = True
-                            op = imp['name']
-                            target = imp['addr']
-                            break
-                if not isApi:
-                    target = None
-                    target = idc.LocByName(op)
-                call_insns.append((cur_addr, size, target, op, isApi))
-        elif jump_check:
-            op = idc.GetOpnd(cur_addr, 0)
-            op_type = idc.GetOpType(cur_addr, 0)
-            if (op_type == o_near or op_type == o_far) and op_type != o_reg:
-                target = None
-                jumpout = None
-                target = idc.LocByName(op)
-                jumpout = target  < start or target > end
-                jump_insns.append((cur_addr, size, target, jumpout))
+        '''ATTENTION: GetMnem in IDA < 7.0 sometimes doesn't return full mnemonic
+        TODO: implement fix''' 
+        call_check, jump_check, flow = checkFlow(data['info']['arch'], idc.GetMnem(cur_addr))
+        flow(call_check, jump_check, jump_insns, call_insns)
         
         cur_addr = next_instr
 
