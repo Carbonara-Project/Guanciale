@@ -33,9 +33,9 @@ libs | OK
 
 architectures:
     x86/64 | OK
-    avr | TODO
-    powerpc | TODO
-    mips | TODO
+    avr | ON HOLD
+    powerpc | OK
+    mips | OK
     arm | OK
 '''
 class_map = {
@@ -146,25 +146,26 @@ def metapcFlow(call_check, jump_check, jump_insns, call_insns):
             jumpout = target  < start or target > end
             jump_insns.append((cur_addr, size, target, jumpout))
 
-def avrFlow():
-    pass
-def ppcFlow():
-    pass
-def mipsFlow():
-    pass
+avrFlow = metapcFlow
+ppcFlow = metapcFlow
+mipsFlow = metapcFlow
 armFlow = metapcFlow
 
 def checkFlow(arch, mnem):
     if arch == 'metapc':
         return mnem == 'call', mnem.startswith('j'), metapcFlow
     elif arch == 'avr':
-        return mnem == 'call', mnem.startswith('br'), avrFlow
+        return 'call' in mnem, mnem.startswith('br') or 'jmp' in mnem, avrFlow
     elif arch.startswith('ppc'):
-        return False, mnem.startswith('b'), ppcFlow
+        return mnem == 'bl', mnem.startswith('b') and mnem != 'bl', ppcFlow
     elif arch.startswith('mips'):
-        return mnem.startswith('b'), mnem.startswith('j'), mipsFlow
+        check = mnem.startswith(('j', 'b'))
+        return check and 'l' in mnem, check and 'l' not in mnem, mipsFlow
     elif arch.startswith('arm'):
-        return mnem.startswith('BL'), mnem.startswith('B') and not mnem.startswith('BL'), armFlow
+        check = mnem.startswith('B')
+        return check and 'L' in mnem, check and 'L' not in mnem, armFlow
+    else:
+        return False, False, metapcFlow
 
 #wait for IDA analysys to complete
 idaapi.autoWait()
@@ -266,9 +267,10 @@ for func in idautils.Functions():
         #add to flow_insns if call or jump
         '''ATTENTION: GetMnem in IDA < 7.0 sometimes doesn't return full mnemonic
         TODO: implement fix''' 
-        call_check, jump_check, flow = checkFlow(data['info']['arch'], idc.GetMnem(cur_addr))
-        flow(call_check, jump_check, jump_insns, call_insns)
-        
+
+        call_check, jump_check, addFlow = checkFlow(data['info']['arch'], idc.GetMnem(cur_addr))
+        addFlow(call_check, jump_check, jump_insns, call_insns)
+
         cur_addr = next_instr
 
     #get raw data

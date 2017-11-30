@@ -28,7 +28,7 @@ ida_arch_map = {
     ("arm", 32): archinfo.ArchARM,
     ("armb", 32): archinfo.ArchARM,
     ("metapc", 64): archinfo.ArchAMD64,
-    ("avr", 16): archinfo.ArchAVR, #??? check if it is true in ida
+    ("avr", 16): archinfo.ArchAVR, #??? check if it is true in ida -> Manco per cazzo -> pls drop avr support
     ("mips", 32): archinfo.ArchMIPS32,
     ("mipsb", 32): archinfo.ArchMIPS32,
     ("mips64", 64): archinfo.ArchMIPS64,
