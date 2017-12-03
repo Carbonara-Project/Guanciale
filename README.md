@@ -5,7 +5,7 @@ Grab informations needed by Carbonara from executables and disassemblers databas
 ## Install
 ### Linux
 ```
-$ sudo apt install radare2 python python-pip
+$ sudo apt install python python-pip python-capstone
 $ pip install -r requirements.txt
 $ python setup.py install
 ```
