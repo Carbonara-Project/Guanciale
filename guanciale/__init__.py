@@ -163,7 +163,7 @@ class BinaryInfo(object):
         dumpname = '.'+binname+ '-'+ rand +'-dump.json'
 
         file_ext = os.path.splitext(filename)[1]
-        idascript = os.path.join(os.path.dirname(__file__), "idascript.py ")
+        idascript = os.path.join(os.path.dirname(os.path.abspath(__file__)), "idascript.py ")
         
         if config.usewine:
             idascript.replace(os.path.sep, "\\")
