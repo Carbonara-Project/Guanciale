@@ -32,7 +32,7 @@ class BinaryInfo(object):
         :param str filename: The filename of target binary
         '''
 
-        print "[Retrieving basic info about binary]"
+        print("[Retrieving basic info about binary]")
         #open the binary file and compute sha256 hash
         binfile = open(filename, "rb")
         hash_object = hashlib.md5(binfile.read())
@@ -51,7 +51,7 @@ class BinaryInfo(object):
         self.r2 = r2handler.open(filename)
         
         #r2 cmd izzj : get strings contained in the binary in json
-        print "1: getting strings list..."
+        print("1: getting strings list...")
         strings = self.r2.cmdj('izzj')["strings"]
         
         self.data["strings"] = []
@@ -65,7 +65,7 @@ class BinaryInfo(object):
             self.data["strings"].append(s)
         
         #r2 cmd Sj : get sections
-        print "2: getting sections..."
+        print("2: getting sections...")
         sections = self.r2.cmdj('iSj')
         
         self.data["sections"] = []
@@ -88,11 +88,11 @@ class BinaryInfo(object):
         
         binfile.close()
         
-        print "3: calculating entropy..."
+        print("3: calculating entropy...")
         self.data["entropy"] = self.r2.cmdj('p=ej') #TODO ??? must be rewritten!!! listen ML experts
 
         #r2 cmd iIj : get info about binary in json
-        print "4: getting general file properties..."
+        print("4: getting general file properties...")
         self.data["info"] = self.r2.cmdj('iIj')
         self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
         del self.data["info"]["class"]
@@ -161,7 +161,7 @@ class BinaryInfo(object):
         def strz(b, o):
             return b[o:b.find(b'\x00', o)].decode('utf-8', 'ignore')
 
-        fhandle = open(filename, 'r')
+        fhandle = open(filename, 'rb')
         idbfile = idblib.IDBFile(fhandle)
         id0 = idblib.ID0File(idbfile, idbfile.getpart(0))
 
@@ -171,7 +171,7 @@ class BinaryInfo(object):
             if params:
                 magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt*2)+ "HH", params, 0) #maaagic
                 cpu = strz(cpu, 0)[1:]
-                print magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype
+                print(magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype)
         
         try:
             self.arch = matching.archFromIda(cpu, self.data["info"]["bits"], self.data["info"]["endian"])
@@ -198,14 +198,14 @@ class BinaryInfo(object):
                     start = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_START)
                     end = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_END)
 
-                    #print '%x - %x' % (start, end)
+                    print('%x - %x' % (start, end))
                     cur_addr = start
                     
                     flow_insns = []
                     asm = ''
                     ops = []
                     insns_list = []
-                    opcodes_list = []
+                    opcodes_list = ""
                     flow_insns = [] #TODO <-----
                     
                     #get assembly from function
@@ -217,30 +217,35 @@ class BinaryInfo(object):
                             size = end - cur_addr
                         else:
                             size = next_instr - cur_addr
-
-                        flags = api.idc.GetFlags(address)
+                        
+                        flags = api.idc.GetFlags(cur_addr)
                         if api.ida_bytes.isCode(flags):
-                            size = api.idc.ItemSize(ea)
-                            buf = api.idc.GetManyBytes(address, size)
-                            
                             try:
-                                op = next(api.idc.dis.disasm_lite(buf, size))
+                                ins_size = api.idc.ItemSize(cur_addr)
+                                buf = api.idc.GetManyBytes(cur_addr, ins_size)
+                                
+                                op = next(api.idc.dis.disasm_lite(buf, ins_size))
                             except StopIteration:
-                                raise RuntimeError('parseIDB: failed to disassemble %s' % (hex(ea)))
+                                raise RuntimeError('parseIDB: failed to disassemble %s' % (hex(cur_addr)))
                             except:
                                 break #will fail after the function end (problably)
                             
-                            asm += hex(address) + ' ' + op[2] + " " + op[3] #op[2]--> mnemonic, op[3]-->op_str
+                            asm += hex(cur_addr) + "   " + op[2] + " " + op[3] #op[2]--> mnemonic, op[3]-->op_str
                             insns_list.append(buf)
-                            opcodes_list.append(buf[0])
+                            opcodes_list += buf[0]
                             
+                            #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
+                            self.data["codebytes"][buf[0]] = self.data["codebytes"].get(buf[0], 0) +1
+                        
                             #get comment if possible
                             try:
-                                #cmt = api.ida_bytes.get_cmt(address, True).replace('\n', '\n   '+' '*len(asm))
-                                cmt = api.ida_bytes.get_cmt(address, True).replace('\n', ' ')
+                                #cmt = api.ida_bytes.get_cmt(cur_addr, True).replace('\n', '\n   '+' '*len(asm))
+                                cmt = api.ida_bytes.get_cmt(cur_addr, True).replace('\n', ' ')
                                 asm += '   ;' + cmt
                             except:
                                 pass
+                        else:
+                            asm += hex(cur_addr) + "   align 0x%x" % (next_instr - cur_addr)
                         asm += "\n"
 
                         cur_addr = next_instr
@@ -248,12 +253,16 @@ class BinaryInfo(object):
                     #get raw bytes from function
                     fcn_bytes = api.idc.GetManyBytes(start, end-start)
                     
-                    #get callconv => NOT WROKING
+                    #asm += "[CS]\n"
+                    #for ins in api.idc.dis.disasm_lite(fcn_bytes, len(fcn_bytes)):
+                    #    asm += hex(ins[0]) + "  " + ins[2] + " " +ins[3] +"\n"
+                    
+                    #get callconv => NOT WORKING
                     #flags = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_FLAGS)
                     #callconv = api.idc.get_optype_flags1(flags)
                     callconv = None
                     
-                    print '0x%x %s\n%s' % (func, fcn_name, asm)
+                    print('++++ 0x%d %s ++++\n%s' % (func, fcn_name, asm))
                     
                     count += 1
                     bar.update(count)
@@ -268,11 +277,11 @@ class BinaryInfo(object):
         '''
         
         if config.idacmd == None or True:
-            print "IDA Pro not found, using built-in idb parsing module.\nThe output may not be accurate."
+            print("IDA Pro not found, using built-in idb parsing module.\nThe output may not be accurate.")
             self.parseIDB(filename)
             raise NotImplementedError() #parse idb without calling IDA
 
-        print "2: Waiting for IDA to parse database (this may take several minutes)..."
+        print("2: Waiting for IDA to parse database (this may take several minutes)...")
 
         #.json name
         binname = os.path.splitext(filename)[0]
@@ -301,7 +310,7 @@ class BinaryInfo(object):
         #clean up
         os.remove(dumpname)
         
-        print "2: getting file properties..."
+        print("2: getting file properties...")
         #self.data['info'] = data['info']
         for key in data['info']:
             self.data['info'][key] = data['info'][key]
@@ -312,16 +321,16 @@ class BinaryInfo(object):
             raise ArchNotSupported("arch %s not supported" % self.data["info"]["arch"])
         self.data["info"]["arch"] = self.arch.name
         
-        print "3: getting imported libraries..."
+        print("3: getting imported libraries...")
         self.data['libs'] = data['libs']
 
-        print "4: getting imported procedures names..."
+        print("4: getting imported procedures names...")
         self.data['imports'] = data['imports']
 
-        print "5: getting exported symbols..."
+        print("5: getting exported symbols...")
         self.data["exports"] = data['exports']
 
-        print "6: getting assembly and other info about each procedure..."
+        print("6: getting assembly and other info about each procedure...")
         
         with status.Status(len(data['procedures'])) as bar:
             count = 0
@@ -334,6 +343,11 @@ class BinaryInfo(object):
                     for ins in func['insns_list']:
                         insns_list.append(base64.b64decode(ins))
                     opcodes_list = func['ops']
+                    
+                    #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
+                    for i in range(0, len(opcodes_list), 2):
+                        self.data["codebytes"][opcodes_list[i:i+2]] = self.data["codebytes"].get(opcodes_list[i:i+2], 0) +1
+                    
                     fcn_offset = func['offset']
                     fcn_call_conv = func['callconv']
                     call_insns = func['call_insns']
@@ -348,7 +362,7 @@ class BinaryInfo(object):
 
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
-                    print "error on function %s, skipped" % func["name"]
+                    print("error on function %s, skipped" % func["name"])
                 count += 1
                 bar.update(count)
 
@@ -359,7 +373,7 @@ class BinaryInfo(object):
         Get info from the radare2 process
         '''
         
-        print "2: getting architecture..."
+        print("2: getting architecture...")
         try:
             self.arch = matching.archFromR2(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
         except:
@@ -367,11 +381,11 @@ class BinaryInfo(object):
         self.data["info"]["arch"] = self.arch.name
         
         #r2 cmd ilj : get imported libs in json
-        print "3: getting imported libraries..."
+        print("3: getting imported libraries...")
         self.data["libs"] = self.r2.cmdj('ilj')
         
         #r2 cmd ilj : get imported functions in json
-        print "4: getting imported procedures names..."
+        print("4: getting imported procedures names...")
         imports = self.r2.cmdj('iij')
         
         self.data["imports"] = []
@@ -383,7 +397,7 @@ class BinaryInfo(object):
             self.data["imports"].append(i)
         
         #r2 cmd ilj : get exported symbols in json
-        print "5: getting exported symbols..."
+        print("5: getting exported symbols...")
         exports = self.r2.cmdj('iEj')
         
         self.data["exports"] = []
@@ -396,11 +410,11 @@ class BinaryInfo(object):
             self.data["exports"].append(e)
 
         #r2 cmd aflj : get info about analyzed functions
-        print "6: getting list of analyzed procedures..."
+        print("6: getting list of analyzed procedures...")
         funcs_dict = self.r2.cmdj('aflj')
         sym_imp_l = len("sym.imp") 
         
-        print "7: getting assembly and other info about each procedure..."
+        print("7: getting assembly and other info about each procedure...")
         with status.Status(len(funcs_dict)) as bar:
             count = 0
             for func in funcs_dict:
@@ -440,9 +454,9 @@ class BinaryInfo(object):
                         
                         #insert comments in disassembly if presents
                         if "comment" in instr:
-                            asm += instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
+                            asm += hex(instr["offset"]) + "   " + instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
                         else:
-                            asm += instr["opcode"] + "\n"
+                            asm += hex(instr["offset"]) + "   " + instr["opcode"] + "\n"
                             
                         #check if the instruction is of type 'call'
                         if instr["type"] == "call" and "jump" in instr:
@@ -466,7 +480,7 @@ class BinaryInfo(object):
                     
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
-                    print "error on function %s, skipped" % func["name"]
+                    print("error on function %s, skipped" % func["name"])
                 count += 1
                 bar.update(count)
 
@@ -477,7 +491,7 @@ class BinaryInfo(object):
         :param str name: The name of the radare2 project or its path
         '''
 
-        print "[Retrieving info from radare2 project]"
+        print("[Retrieving info from radare2 project]")
         
         #set project directory var in radare
         projdir = os.path.dirname(name)
@@ -487,7 +501,7 @@ class BinaryInfo(object):
             self.r2.cmd("e dir.projects=" + projdir)
         
         #r2 cmd Po : load project
-        print "1: loading project..."
+        print("1: loading project...")
         out = self.r2.cmd("Po " + projname)
         if len(out) >= len("Cannot open project info") and out == "Cannot open project info":
             raise RuntimeError("cannot load radare2 project " + name)
@@ -499,10 +513,10 @@ class BinaryInfo(object):
         Grab basic informations about the binary from r2
         '''
 
-        print "[Extracting info from binary]"
+        print("[Extracting info from binary]")
         
         #r2 cmd aa : analyze all
-        print "1: analyzing all..."
+        print("1: analyzing all...")
         self.r2.cmd("aaa")
         
         self._r2Task()

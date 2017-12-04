@@ -8,6 +8,10 @@ __email__ = "andreafioraldi@gmail.com, rop2bash@gmail.com"
 import pyvex
 import archinfo
 import hashlib
+import sys
+
+if sys.version_info[0] < 3:
+    range = xrange
 
 r2_arch_map = {
     ("arm", 64): archinfo.ArchAArch64,
@@ -109,13 +113,13 @@ class ProcedureHandler(object):
         regs = {}
         irsbs = []
 
-        for bidx in xrange(len(bb) -1):
+        for bidx in range(len(bb) -1):
             irsb = pyvex.IRSB(self.code[bb[bidx]:bb[bidx+1]], self.offset + bb[bidx], self.arch, opt_level=0)
             irsbs.append(irsb)
         
             stmts = irsb.statements
             
-            for i in xrange(len(stmts)):
+            for i in range(len(stmts)):
                 #TODO PutI GetI
                 
                 if isinstance(stmts[i], pyvex.stmt.Put):
@@ -150,13 +154,13 @@ class ProcedureHandler(object):
         #order addresses
         addrs = {}
         ips.sort()
-        for i in xrange(len(ips)):
+        for i in range(len(ips)):
             addrs[ips[i]] = i
         
         for irsb in irsbs:
             stmts = irsb.statements
                      
-            for i in xrange(len(stmts)):
+            for i in range(len(stmts)):
                 if isinstance(stmts[i], pyvex.stmt.IMark) or isinstance(stmts[i], pyvex.stmt.AbiHint):
                     continue
                 
@@ -205,13 +209,13 @@ class ProcedureHandler(object):
             try:
                 irsb = pyvex.IRSB(instr, 0, self.arch, opt_level=0)
             except pyvex.errors.PyVEXError as err:
-                print "Error with instruction " + instr.encode("hex")
+                print("Error with instruction " + instr.encode("hex"))
                 raise err
             irsbs.append(irsb)
         
             stmts = irsb.statements
             
-            for i in xrange(len(stmts)):
+            for i in range(len(stmts)):
                 #TODO PutI GetI
                 
                 if isinstance(stmts[i], pyvex.stmt.Put):
@@ -246,7 +250,7 @@ class ProcedureHandler(object):
         #order addresses
         addrs = {}
         ips.sort()
-        for i in xrange(len(ips)):
+        for i in range(len(ips)):
             addrs[ips[i]] = i
         
         for irsb in irsbs:
@@ -256,7 +260,7 @@ class ProcedureHandler(object):
             
             stmts = irsb.statements
                      
-            for i in xrange(len(stmts)):
+            for i in range(len(stmts)):
                 if isinstance(stmts[i], pyvex.stmt.IMark) or isinstance(stmts[i], pyvex.stmt.AbiHint):
                     continue
                 
@@ -318,15 +322,15 @@ class ProcedureHandler(object):
         
         jumps.sort()
         jumps_dict = {}
-        for i in xrange(len(jumps)):
+        for i in range(len(jumps)):
             jumps_dict[jumps[i]] = i
         
         sorted = internals[:]
         sorted.sort()
         calleds_dict = {}
-        for i in xrange(len(sorted)):
+        for i in range(len(sorted)):
             calleds_dict[sorted[i]] = i
-        for i in xrange(len(internals)):
+        for i in range(len(internals)):
             internals[i] = calleds_dict[internals[i]]
         
         self.jumps_flow = []

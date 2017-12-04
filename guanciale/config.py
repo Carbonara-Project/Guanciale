@@ -43,11 +43,11 @@ def _downloadRadare():
             out_file = open(path, "wb")
         except IOError as err:
             if err.errno == 13: #permission denied
-                print "Permission denied to download radare2 files in the app folder, try to run me as root."
+                print("Permission denied to download radare2 files in the app folder, try to run me as root.")
                 exit(1)
             raise err
 
-        print "Downloading %s..." % filename
+        print("Downloading %s..." % filename)
         r = requests.get(url, stream=True)
         size = r.headers.get('content-length')
 
@@ -80,23 +80,23 @@ def populateConfig_radare():
     if os.name == "nt":
         rad += ".exe"
     if not inPath(rad):
-        print "!!! RADARE2 NOT FOUND IN PATH !!!"
+        print("!!! RADARE2 NOT FOUND IN PATH !!!")
         sel = None
         while True:
             print
-            print " 1. Download precompiled binary"
-            print " 2. Specify the radare2 binary path manually"
+            print(" 1. Download precompiled binary")
+            print(" 2. Specify the radare2 binary path manually")
             sel = raw_input("> ")
             if sel == "1":
                 rad = _downloadRadare()
                 if rad != None:
                     break
-                print "Precompiled radare2 for your system and/or machine is not avaiable."
+                print("Precompiled radare2 for your system and/or machine is not avaiable.")
             elif sel == "2":
                 rad = raw_input("Insert radare2 path: ")
                 if os.access(rad, os.X_OK):
                     break
-                print "The file is not accessible. Retry"
+                print("The file is not accessible. Retry.")
                 continue
     radare2 = rad
     
@@ -246,14 +246,14 @@ def writeConfig():
         config_file = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "carbonara_guanciale.config.json"), "w")
     except IOError as err:
         if err.errno == 13: #permission denied
-            print "Permission denied to write to the config file, try to run me as root."
+            print("Permission denied to write to the config file, try to run me as root.")
             exit(1)
         raise err
     json.dump(data, config_file, indent=4)
     config_file.close()
 
 def generateConfig():
-    print "Generating config file..."
+    print("Generating config file...")
     populateConfig_radare()
     populateConfig_idacmd()
     writeConfig()

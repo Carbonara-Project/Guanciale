@@ -247,7 +247,7 @@ for func in idautils.Functions():
             size = next_instr - cur_addr
 
         #get assembly and comments
-        curr_asm = idc.GetDisasm(cur_addr).split(';')[0]
+        curr_asm = hex(cur_addr) + "   " + idc.GetDisasm(cur_addr).split(';')[0]
         try:
             curr_asm += '   ;' + idc.GetCommentEx(cur_addr, True).replace('\n', ' ')
         except:
