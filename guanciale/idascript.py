@@ -265,10 +265,9 @@ for func in idautils.Functions():
         insns_list.append(base64.b64encode(idc.GetManyBytes(cur_addr, size)))
         
         #add to flow_insns if call or jump
-        '''ATTENTION: GetMnem in IDA < 7.0 sometimes doesn't return full mnemonic
-        TODO: implement fix''' 
-
-        call_check, jump_check, addFlow = checkFlow(data['info']['arch'], idc.GetMnem(cur_addr))
+        arch = data['info']['arch']
+        mnem = idc.GetMnem(cur_addr) if arch =='metapc' else idc.GetDisasm(cur_addr).split()[0]
+        call_check, jump_check, addFlow = checkFlow(arch, mnem)
         addFlow(call_check, jump_check, jump_insns, call_insns)
 
         cur_addr = next_instr
