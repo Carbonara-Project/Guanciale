@@ -11,7 +11,7 @@ import platform
 
 setup(
     name='guanciale',
-    version="1.0.2",
+    version="1.0.3",
     license=__license__,
     description='Grab information needed by Carbonara',
     author=__author__,
@@ -25,6 +25,6 @@ setup(
             'requests',
             'python-idb',
             'archinfo',
-            'pyvex'
+            'carbonara-pyvex'
     ]
 )

@@ -11,6 +11,7 @@ import json
 import requests
 import platform
 import shutil
+import sys
 
 radare2 = None
 idacmd = None
@@ -33,7 +34,7 @@ def _downloadRadare():
         if filename.strip() == "":
             continue
         
-        path = os.path.join(os.path.dirname(__file__), "radare2", filename)
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "radare2", filename)
         if "radare2" in filename:
             r2 = path
         url = "https://carbonara-project.github.io/Carbonara-Downloads/" + platform.system() + "/" + platform.machine() + "/" + filename
@@ -45,13 +46,31 @@ def _downloadRadare():
                 print "Permission denied to download radare2 files in the app folder, try to run me as root."
                 exit(1)
             raise err
+
+        print "Downloading %s..." % filename
         r = requests.get(url, stream=True)
-        shutil.copyfileobj(r.raw, out_file)
+        size = r.headers.get('content-length')
+
+        if size is None:
+            out_file.write(r.content)
+        else:
+            progress = 0
+            size = int(size)
+            for data in r.iter_content(chunk_size=4096):
+                progress += len(data)
+                out_file.write(data)
+                perc = str(int(float(progress) / size * 100))
+                sys.stdout.write("\r %s%%%s     %d / %d" % (perc, " "*(3-len(perc)), progress, size))    
+                sys.stdout.flush()
+        
         out_file.close()
-    
+        print
+        
     if os.name == "posix":
         os.chmod(r2, 0755)
     return r2
+
+
 def populateConfig_radare():
     def inPath(cmd):
         return any(os.access(os.path.join(path, cmd), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
@@ -224,7 +243,7 @@ def writeConfig():
         "usewine": usewine
     }
     try:
-        config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_guanciale.config.json"), "w")
+        config_file = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "carbonara_guanciale.config.json"), "w")
     except IOError as err:
         if err.errno == 13: #permission denied
             print "Permission denied to write to the config file, try to run me as root."
@@ -247,7 +266,7 @@ def populate():
     
     #read config file
     try:
-        config_file = open(os.path.join(os.path.dirname(__file__), "carbonara_guanciale.config.json"))
+        config_file = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "carbonara_guanciale.config.json"))
         config_json = json.load(config_file)
         config_file.close()
         if "radare2" in config_json:
