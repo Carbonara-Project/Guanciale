@@ -155,7 +155,116 @@ class BinaryInfo(object):
         
     def parseIDB(self, filename):
         
-        
+        import logging
+        logging.basicConfig()
+
+
+        def strz(b, o):
+            return b[o:b.find(b'\x00', o)].decode('utf-8', 'ingore')
+
+        def load_dis(api, mode):
+            if api.idc.dis is not None:
+                return
+
+            #TODO: hardcoded to x86! map to capstone
+            api.idc.dis = capstone.Cs(capstone.CS_ARCH_X86, mode)
+            #required to fetch operand values
+            api.idc.dis.detail = True
+
+        def disassemble(api, ea, mode):
+            size = api.idc.ItemSize(ea)
+            buf = api.idc.GetManyBytes(ea, size)
+            load_dis(api, mode)
+            try:
+                op = next(api.idc.dis.disasm_lite(buf, size))
+            except StopIteration:
+                raise RuntimeError('failed to disassemble %s' % (hex(ea)))
+            else:
+                return op
+
+        def getAsm(api, address, mode, flow_insns):
+            asm = ''
+            flags = api.idc.GetFlags(address)
+            if api.ida_bytes.isCode(flags):
+                try:
+                    op = disassemble(api, address, mode)
+                except:
+                    return ''
+                asm = hex(address) + ' ' + op[2]+ ' '+op[3]
+                #get comment if possible
+                try:
+                    #cmt = api.ida_bytes.get_cmt(address, True).replace('\n', '\n   '+' '*len(asm))
+                    cmt = api.ida_bytes.get_cmt(address, True).replace('\n', ' ')
+                    asm += '   ;'+cmt
+                except:
+                    pass
+            return asm+'\n'
+
+        fhandle = open(filename, 'r')
+        idbfile = idblib.IDBFile(fhandle)
+        id0 = idblib.ID0File(idbfile, idbfile.getpart(0))
+
+        root = id0.nodeByName('Root Node')
+        if root:
+            params = id0.bytes(root, 'S', 0x41b994)
+            if params:
+                magic, version, cpu, idpflags, demnames, filetype, coresize, corestart, ostype, apptype = struct.unpack_from("<3sH8sBBH" + (id0.fmt*2)+ "HH", params, 0)
+                cpu = strz(cpu, 0)[1:]
+
+        print cpu
+
+        with idb.from_file(filename) as db:
+
+            #temp bit architecture
+            file_ext = os.path.splitext(filename)[1]
+            if file_ext == '.idb':
+                mode = capstone.CS_MODE_32
+            elif file_ext == '.i64':
+                mode = capstone.CS_MODE_64
+
+            api = idb.IDAPython(db)
+
+            #iterate for each function
+            for func in api.idautils.Functions():
+                func_name = api.idc.GetFunctionName(func)
+
+                start = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_START)
+                end = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_END)
+
+                print '%x - %x' % (start, end)
+                cur_addr = start
+                
+                flow_insns = []
+                asm = ''
+                ops = []
+                insns_list = []
+
+                #get assembly from function
+                while cur_addr <= end:
+                    next_instr = api.idc.NextHead(cur_addr)
+
+                    #get size instr
+                    if next_instr > end:
+                        size = end - cur_addr
+                    else:
+                        size = next_instr - cur_addr
+
+                    #get assembly and comments
+                    asm += getAsm(api, cur_addr, mode, flow_insns)
+
+                    cur_addr = next_instr
+
+
+                #get raw bytes from function
+                #raw = api.idc.GetManyBytes(start, end-start)
+                
+                #get callconv => NOT WROKING
+                flags = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_FLAGS)
+                callconv = api.idc.get_optype_flags1(flags)
+
+                print '0x%x %s\n%s' % (func, func_name, asm)
+
+        fhandle.close()
     
     def fromIdaDB(self, filename):
         '''
