@@ -92,6 +92,13 @@ class BinaryInfo(object):
         print "3: calculating entropy..."
         self.data["entropy"] = self.r2.cmdj('p=ej') #TODO ??? must be rewritten!!! listen ML experts
 
+        #r2 cmd iIj : get info about binary in json
+        print "4: getting general file properties..."
+        self.data["info"] = self.r2.cmdj('iIj')
+        self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
+        del self.data["info"]["class"]
+
+        
     def __del__(self):
         if "r2" in self.__dict__:
             self.r2.quit()
@@ -145,6 +152,11 @@ class BinaryInfo(object):
     def __str__(self):
         return self.toJson()
 
+        
+    def parseIDB(self, filename):
+        
+        
+    
     def fromIdaDB(self, filename):
         '''
         Get information about binary stored in a IDA database
@@ -152,8 +164,10 @@ class BinaryInfo(object):
         :param str filename: The name of the IDA databse or its path
         '''
         
-        if config.idacmd == None:
-             raise NotImplementedError() #parse idb without calling IDA
+        if config.idacmd == None or True:
+            print "IDA Pro not found, using built-in idb parsing module.\nThe output may not be accurate."
+            self.parseIDB(filename)
+            raise NotImplementedError() #parse idb without calling IDA
 
         print "2: Waiting for IDA to parse database (this may take several minutes)..."
 
@@ -185,8 +199,10 @@ class BinaryInfo(object):
         os.remove(dumpname)
         
         print "2: getting file properties..."
-        self.data['info'] = data['info']
-
+        #self.data['info'] = data['info']
+        for key in data['info']:
+            self.data['info'][key] = data['info'][key]
+        
         try:
             self.arch = matching.archFromIda(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
         except:
@@ -239,13 +255,8 @@ class BinaryInfo(object):
         '''
         Get info from the radare2 process
         '''
-
-        #r2 cmd iIj : get info about binary in json
-        print "2: getting file properties..."
-        self.data["info"] = self.r2.cmdj('iIj')
-        self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
-        del self.data["info"]["class"]
         
+        print "2: getting architecture..."
         try:
             self.arch = matching.archFromR2(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
         except:

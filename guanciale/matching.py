@@ -99,7 +99,8 @@ class ProcedureHandler(object):
                     bb.append(next)
 
         bb.sort()
-        bb.append(self.offset + self.size)
+        #bb.append(self.offset + self.size)
+        bb.append(self.size)
         consts = {}
         ips = []
         vex_code = ""
