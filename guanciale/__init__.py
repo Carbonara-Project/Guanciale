@@ -158,9 +158,61 @@ class BinaryInfo(object):
         import capstone
         logging.basicConfig()
 
+        imports_map = {}        
+        
+        #############################################################
+        #r2 cmd ilj : get imported libs in json
+        print("3: getting imported libraries...")
+        self.data["libs"] = self.r2.cmdj('ilj')
+        
+        #r2 cmd ilj : get imported functions in json
+        print("4: getting imported procedures names...")
+        imports = self.r2.cmdj('iij')
+        
+        self.data["imports"] = []
+        for imp in imports:
+            i = {
+                "name": imp["name"],
+                "addr": imp["plt"] #??? for PE binaries?
+            }
+            imports_map[hex(imp["plt"])] = imp["name"]
+            self.data["imports"].append(i)
+        
+        #r2 cmd ilj : get exported symbols in json
+        print("5: getting exported symbols...")
+        exports = self.r2.cmdj('iEj')
+        
+        self.data["exports"] = []
+        for exp in exports:
+            e = {
+                "name": exp["name"],
+                "offset": exp["paddr"],
+                "size": exp["size"]
+            }
+            self.data["exports"].append(e)
+        #############################################################
+        
+        print imports_map
+        
         def strz(b, o):
             return b[o:b.find(b'\x00', o)].decode('utf-8', 'ignore')
 
+        def checkFlow(arch, mnem):
+            if arch == 'metapc':
+                return mnem == 'call', mnem.startswith('j')
+            elif arch == 'avr':
+                return 'call' in mnem, mnem.startswith('br') or 'jmp' in mnem
+            elif arch.startswith('ppc'):
+                return mnem == 'bl', mnem.startswith('b') and mnem != 'bl'
+            elif arch.startswith('mips'):
+                check = mnem.startswith(('j', 'b'))
+                return check and 'l' in mnem, check and 'l' not in mnem
+            elif arch.startswith('arm'):
+                check = mnem.startswith('B')
+                return check and 'L' in mnem, check and 'L' not in mnem
+            else:
+                return False, False   
+         
         fhandle = open(filename, 'rb')
         idbfile = idblib.IDBFile(fhandle)
         id0 = idblib.ID0File(idbfile, idbfile.getpart(0))
@@ -198,7 +250,6 @@ class BinaryInfo(object):
                     start = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_START)
                     end = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_END)
 
-                    print('%x - %x' % (start, end))
                     cur_addr = start
                     
                     flow_insns = []
@@ -206,7 +257,6 @@ class BinaryInfo(object):
                     ops = []
                     insns_list = []
                     opcodes_list = ""
-                    flow_insns = [] #TODO <-----
                     
                     #get assembly from function
                     while cur_addr <= end:
@@ -230,7 +280,9 @@ class BinaryInfo(object):
                             except:
                                 break #will fail after the function end (problably)
                             
-                            asm += hex(cur_addr) + "   " + op[2] + " " + op[3] #op[2]--> mnemonic, op[3]-->op_str
+                            mnem = op[2]
+                            
+                            asm += hex(cur_addr) + "   " + mnem + " " + op[3] #op[2]--> mnemonic, op[3]-->op_str
                             insns_list.append(buf)
                             opcodes_list += buf[0]
                             
@@ -244,25 +296,49 @@ class BinaryInfo(object):
                                 asm += '   ;' + cmt
                             except:
                                 pass
-                        else:
-                            asm += hex(cur_addr) + "   align 0x%x" % (next_instr - cur_addr)
-                        asm += "\n"
+                            asm += "\n"
+                            
+                            call_check, jump_check = checkFlow(cpu, mnem)
+
+                            if call_check:
+                                is_num = True
+                                try: target = int(op[3], 16)
+                                except:
+                                    is_num = False
+                                if is_num:
+                                    isApi = op[3] in imports_map
+                                    #TODO recognize api calls with xrefs
+                                    target_name = op[3]
+                                    if isApi:
+                                        target_name = target_name[op[3]]
+
+                                    ci = matching.CallInsn(cur_addr, ins_size, target, target_name, isApi)
+                                    flow_insns.append(ci)
+                            elif jump_check:
+                                is_num = True
+                                try: target = int(op[3], 16)
+                                except:
+                                    is_num = False
+                                if is_num:
+                                    jumpout = target  < start or target > end
+                                    fi = matching.JumpInsn(cur_addr, target, target, jumpout)
+                                    flow_insns.append(fi)
 
                         cur_addr = next_instr
 
                     #get raw bytes from function
                     fcn_bytes = api.idc.GetManyBytes(start, end-start)
-                    
-                    #asm += "[CS]\n"
-                    #for ins in api.idc.dis.disasm_lite(fcn_bytes, len(fcn_bytes)):
-                    #    asm += hex(ins[0]) + "  " + ins[2] + " " +ins[3] +"\n"
-                    
+
                     #get callconv => NOT WORKING
                     #flags = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_FLAGS)
                     #callconv = api.idc.get_optype_flags1(flags)
                     callconv = None
                     
+                    print('%x - %x' % (start, end))
                     print('++++ 0x%d %s ++++\n%s' % (func, fcn_name, asm))
+                    for ii in flow_insns:
+                        print ii
+                    print
                     
                     count += 1
                     bar.update(count)
@@ -428,11 +504,12 @@ class BinaryInfo(object):
                     fcn_name = func["name"]
                     fcn_call_conv = func["calltype"]
                     
-                    #r2 cmd pdfj : get assembly from a function in json
-                    fcn_instructions = self.r2.cmdj('pdfj @ ' + fcn_name)
+                    self.r2.cmd('s ' + fcn_name)
+                    
+                    #r2 cmd pdrj : get assembly from a function in json
+                    fcn_instructions = self.r2.cmdj('pdrj')
                     
                     #r2 cmd p6e : get bytes of a function in base64
-                    self.r2.cmd('s ' + str(fcn_offset))
                     fcn_bytes = base64.b64decode(self.r2.cmd('p6e ' + str(fcn_size)).rstrip())
                     
                     insns_list = []
@@ -441,7 +518,7 @@ class BinaryInfo(object):
                     
                     flow_insns = []
                     
-                    for instr in fcn_instructions["ops"]:
+                    for instr in fcn_instructions:
                         if instr["type"] == "invalid":
                             break
                         
@@ -480,6 +557,7 @@ class BinaryInfo(object):
                     
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
+                    print err
                     print("error on function %s, skipped" % func["name"])
                 count += 1
                 bar.update(count)
