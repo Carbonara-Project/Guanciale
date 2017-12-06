@@ -12,9 +12,7 @@ import binascii
 import struct
 import os
 import r2handler
-import idblib
 import status
-import idb
 import config
 import matching
 import random
@@ -26,11 +24,16 @@ class ArchNotSupported(RuntimeError):
 
 class BinaryInfo(object):
     def __init__(self, filename):
-        '''
-        BinaryInfo
-
-        :param str filename: The filename of target binary
-        '''
+        """
+        BinaryInfo.__init__ open a binary and grab basic iformations
+        
+        Parameters
+        ----------
+        self: BinaryInfo
+            This instance
+        filename: str
+            The target binary file
+        """
 
         print("[Retrieving basic info about binary]")
         #open the binary file and compute sha256 hash
@@ -90,7 +93,9 @@ class BinaryInfo(object):
         
         print("3: calculating entropy...")
         self.data["entropy"] = self.r2.cmdj('p=ej') #TODO ??? must be rewritten!!! listen ML experts
-
+        self.data["entropy"]["addr_value_list"] = self.data["entropy"]["entropy"]
+        del self.data["entropy"]["entropy"]
+        
         #r2 cmd iIj : get info about binary in json
         print("4: getting general file properties...")
         self.data["info"] = self.r2.cmdj('iIj')
@@ -103,17 +108,30 @@ class BinaryInfo(object):
             self.r2.quit()
 
     def addProc(self, name, asm, raw, insns_list, ops, offset, callconv, flow):
-        '''
-        generate a dictionary with the informations needed to describe a procedure and add it to the procedures list
-
-        :param str name: The procedure name
-        :param str asm: The disassembly with comments
-        :param str raw: The bytes of the function
-        :param str ops: List of first bytes of each instruction
-        :param integer offset: The offset of function from the binary base address
-        :param str callconv: The calling canvention of the procedure
-        :param array<JumpInsn> flow: Array of jump (or call) object extracted from the code
-        '''
+        """
+        BinaryInfo.addProc generate a dictionary with the informations needed to describe a procedure and add it to the procedures list
+        
+        Parameters
+        ----------
+        self: BinaryInfo
+            This instance
+        name: str
+            The procedure name
+        asm: str
+            Assembly code
+        raw: str
+            The bytes of the procedure
+        insns_list: list
+            List of instructions in the procedure (in bytes)
+        ops: str
+            Concatenation of the first bytes of each instruction
+        offset: int
+            Location of the procedure in the binary
+        callconv: str
+            Calling convention (can be None if not recognized)
+        flow: list
+            List of matching.CallInsn or matching.JumpInsn instances
+        """
         
         handler = matching.ProcedureHandler(raw, insns_list, offset, flow, self.arch)
         
@@ -124,21 +142,23 @@ class BinaryInfo(object):
         proc = {
             "name": name,
             "raw": base64.b64encode(raw),
-            "asm": asm,
             "offset": offset,
-            "callconv": callconv,
-            "apicalls": handler.api,
-            "arch": self.arch.name
+            "proc_desc": {
+                "asm": asm,
+                "callconv": callconv,
+                "apicalls": handler.api,
+                "arch": self.arch.name
+            }
         }
 
-        proc["hash1"] = handler.api_hash.encode("hex")
-        proc["hash2"] = handler.internals_hash.encode("hex")
-        proc["hash3"] = handler.jumps_flow_hash.encode("hex")
-        proc["hash4"] = handler.flow_hash.encode("hex")
-        proc["hash5"] = handler.consts_hash.encode("hex")
-        proc["hash6"] = handler.vex_code_hash.encode("hex")
-        proc["hash7"] = hashlib.md5(str(ops)).digest().encode("hex")
-        proc["full_hash"] = hashlib.md5(raw).hexdigest()
+        proc["proc_desc"]["hash1"] = handler.api_hash.encode("hex")
+        proc["proc_desc"]["hash2"] = handler.internals_hash.encode("hex")
+        proc["proc_desc"]["hash3"] = handler.jumps_flow_hash.encode("hex")
+        proc["proc_desc"]["hash4"] = handler.flow_hash.encode("hex")
+        proc["proc_desc"]["hash5"] = handler.consts_hash.encode("hex")
+        proc["proc_desc"]["hash6"] = handler.vex_code_hash.encode("hex")
+        proc["proc_desc"]["hash7"] = hashlib.md5(str(ops)).digest().encode("hex")
+        proc["proc_desc"]["full_hash"] = hashlib.md5(raw).hexdigest()
         self.data["procs"].append(proc)
 
     def addString(self, string):
@@ -152,10 +172,13 @@ class BinaryInfo(object):
         return self.toJson()
 
         
-    def parseIDB(self, filename):
+    def _parseIDB(self, filename):
         
         import logging
         import capstone
+        import idb
+        import idblib
+        
         logging.basicConfig()
 
         imports_map = {}        
@@ -345,18 +368,8 @@ class BinaryInfo(object):
         
         fhandle.close()
     
-    def fromIdaDB(self, filename):
-        '''
-        Get information about binary stored in a IDA database
-
-        :param str filename: The name of the IDA databse or its path
-        '''
-        
-        if config.idacmd == None or True:
-            print("IDA Pro not found, using built-in idb parsing module.\nThe output may not be accurate.")
-            self.parseIDB(filename)
-            raise NotImplementedError() #parse idb without calling IDA
-
+    def _IDAProTask(self, filename):
+    
         print("2: Waiting for IDA to parse database (this may take several minutes)...")
 
         #.json name
@@ -442,7 +455,18 @@ class BinaryInfo(object):
                 count += 1
                 bar.update(count)
 
+    def fromIdaDB(self, filename):
+        '''
+        Get information about binary stored in a IDA database
+
+        :param str filename: The name of the IDA databse or its path
+        '''
         
+        if config.idacmd == None or True:
+            print("IDA Pro not found, using built-in idb parsing module.\nThe output may not be accurate.")
+            self._parseIDB(filename)
+        else:
+            self._IDAProTask(filename)
 
     def _r2Task(self):
         '''
