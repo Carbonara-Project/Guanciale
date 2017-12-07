@@ -21,7 +21,6 @@ setup(
     package_dir={'guanciale': 'guanciale'},
     packages=['guanciale'],
     install_requires=[
-            "capstone",
             'requests',
             'python-idb',
             'archinfo',

@@ -179,7 +179,6 @@ class BinaryInfo(object):
     def _parseIDB(self, filename):
         
         import logging
-        import capstone
         import idb
         import idblib
         
