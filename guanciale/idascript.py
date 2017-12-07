@@ -200,14 +200,14 @@ data['info']['program_class'] = class_map[info.filetype]
 nimps = idaapi.get_import_module_qty()
 for i in xrange(0, nimps):
     dllname = idaapi.get_import_module_name(i)
-    data['libs'].append(dllname)
+    data['libs'].append({"name": dllname})
     idaapi.enum_import_names(i, imp_cb)
 
 #get exports
 for exp in list(idautils.Entries()):
     e = {
         'name': exp[3],
-        'addr': exp[1],
+        'offset': exp[1],
         'size': 0 #Hardcoded to 0 until we figure out what the 'size' info actually means
     }
     data['exports'].append(e)

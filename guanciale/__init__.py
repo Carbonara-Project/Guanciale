@@ -43,8 +43,7 @@ class BinaryInfo(object):
         
         self.data = {
             "program": {
-                "md5": hex_dig,
-                "filename": filename
+                "md5": hex_dig
             },
             "procs": [],
             "codebytes": {}
@@ -63,7 +62,7 @@ class BinaryInfo(object):
                 "val": strg["string"],
                 "offset": strg["paddr"],
                 "size": strg["size"],
-                "type": strg["type"]
+                "encoding": strg["type"]
             }
             self.data["strings"].append(s)
         
@@ -101,6 +100,8 @@ class BinaryInfo(object):
         self.data["info"] = self.r2.cmdj('iIj')
         self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
         del self.data["info"]["class"]
+        
+        self.data["info"]["filename"] = filename
 
         
     def __del__(self):
@@ -140,17 +141,20 @@ class BinaryInfo(object):
         handler.lift()
         
         proc = {
-            "name": name,
-            "raw": base64.b64encode(raw),
             "offset": offset,
             "proc_desc": {
+                "name": name,
+                "raw": base64.b64encode(raw),
                 "asm": asm,
                 "callconv": callconv,
-                "apicalls": handler.api,
+                "apicalls": [],
                 "arch": self.arch.name
             }
         }
 
+        for api in handler.api:
+            proc["proc_desc"]["apicalls"].append({"name": api})
+        
         proc["proc_desc"]["hash1"] = handler.api_hash.encode("hex")
         proc["proc_desc"]["hash2"] = handler.internals_hash.encode("hex")
         proc["proc_desc"]["hash3"] = handler.jumps_flow_hash.encode("hex")
@@ -186,7 +190,10 @@ class BinaryInfo(object):
         #############################################################
         #r2 cmd ilj : get imported libs in json
         print("3: getting imported libraries...")
-        self.data["libs"] = self.r2.cmdj('ilj')
+        libs_list = self.r2.cmdj('ilj')
+        self.data["libs"] = []
+        for lib in libs_list:
+            self.data["libs"].append({"name": lib})
         
         #r2 cmd ilj : get imported functions in json
         print("4: getting imported procedures names...")
@@ -199,7 +206,7 @@ class BinaryInfo(object):
                 "name": imp["name"],
                 "addr": imp["plt"] #??? for PE binaries?
             }
-            for lib in self.data["libs"]:
+            for lib in libs_list:
                 if len(imp["name"]) > len(lib) and imp["name"][:len(lib)] == lib:
                     imports_dict[imp["name"][len(lib):]] = imp["plt"]
                     break
@@ -501,7 +508,7 @@ class BinaryInfo(object):
         :param str filename: The name of the IDA databse or its path
         '''
         
-        if config.idacmd == None or True:
+        if config.idacmd == None:
             print("IDA Pro not found, using built-in idb parsing module.\nThe output may not be accurate.")
             self._parseIDB(filename)
         else:
@@ -521,7 +528,10 @@ class BinaryInfo(object):
         
         #r2 cmd ilj : get imported libs in json
         print("3: getting imported libraries...")
-        self.data["libs"] = self.r2.cmdj('ilj')
+        libs_list = self.r2.cmdj('ilj')
+        self.data["libs"] = []
+        for lib in libs_list:
+            self.data["libs"].append({"name": lib})
         
         #r2 cmd ilj : get imported functions in json
         print("4: getting imported procedures names...")
@@ -534,7 +544,7 @@ class BinaryInfo(object):
                 "name": imp["name"],
                 "addr": imp["plt"] #??? for PE binaries?
             }
-            for lib in self.data["libs"]:
+            for lib in libs_list:
                 if len(imp["name"]) > len(lib) and imp["name"][:len(lib)] == lib:
                     imports_dict[imp["name"][len(lib):]] = imp["plt"]
                     break
