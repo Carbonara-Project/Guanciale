@@ -193,13 +193,19 @@ class BinaryInfo(object):
         imports = self.r2.cmdj('iij')
         
         self.data["imports"] = []
+        imports_dict = {}
         for imp in imports:
             i = {
                 "name": imp["name"],
                 "addr": imp["plt"] #??? for PE binaries?
             }
-            imports_map[hex(imp["plt"])] = imp["name"]
+            for lib in self.data["libs"]:
+                if len(imp["name"]) > len(lib) and imp["name"][:len(lib)] == lib:
+                    imports_dict[imp["name"][len(lib):]] = imp["plt"]
+                    break
+            
             self.data["imports"].append(i)
+        
         
         #r2 cmd ilj : get exported symbols in json
         print("5: getting exported symbols...")
@@ -213,9 +219,12 @@ class BinaryInfo(object):
                 "size": exp["size"]
             }
             self.data["exports"].append(e)
-        #############################################################
         
-        print imports_map
+        #r2 cmd aa : analyze all
+        print("1: analyzing all...")
+        self.r2.cmd("aaa")
+        
+        #############################################################
         
         def strz(b, o):
             return b[o:b.find(b'\x00', o)].decode('utf-8', 'ignore')
@@ -263,6 +272,15 @@ class BinaryInfo(object):
             
             ida_funcs = api.idautils.Functions()
             
+            funcs_map = {}
+            
+            for func in ida_funcs:
+                fcn_name = api.idc.GetFunctionName(func)
+                start = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_START)
+                funcs_map[func] = fcn_name
+            
+            sym_imp_l = len("sym.imp")
+            
             with status.Status(len(ida_funcs)) as bar:
                 count = 0
                 #iterate for each function
@@ -277,9 +295,21 @@ class BinaryInfo(object):
                     
                     flow_insns = []
                     asm = ''
-                    ops = []
                     insns_list = []
                     opcodes_list = ""
+                    
+                    '''get radare intructions, iterate, if not present assemble the single instruction.
+                    s instr_addr
+                    pdj 1 OR pdr
+                    '''
+                    
+                    self.r2.cmdj('s ' + hex(start))
+                    temp_d = self.r2.cmdj('pdrj')
+                    print temp_d
+                    temp_ins = {}
+                    for ins in temp_d:
+                        if "offset" in ins:
+                            temp_ins[ins["offset"]] = ins
                     
                     #get assembly from function
                     while cur_addr <= end:
@@ -293,7 +323,7 @@ class BinaryInfo(object):
                         
                         flags = api.idc.GetFlags(cur_addr)
                         if api.ida_bytes.isCode(flags):
-                            try:
+                            '''try:
                                 ins_size = api.idc.ItemSize(cur_addr)
                                 buf = api.idc.GetManyBytes(cur_addr, ins_size)
                                 
@@ -302,16 +332,142 @@ class BinaryInfo(object):
                                 raise RuntimeError('parseIDB: failed to disassemble %s' % (hex(cur_addr)))
                             except:
                                 break #will fail after the function end (problably)
+                            '''
+                            instr = None
+                            if cur_addr in temp_ins:
+                                instr = temp_ins[cur_addr]
+                            else:
+                                self.r2.cmdj('s ' + hex(cur_addr))
+                                temp_d = self.r2.cmdj('pdrj')
+                                if temp_d == None:
+                                    break
+                                for ins in temp_d:
+                                    if "offset" in ins:
+                                        temp_ins[ins["offset"]] = ins
+                                        if ins["offset"] == cur_addr:
+                                            instr = ins
+                            if instr == None:
+                                break
                             
+                            if instr["type"] == "invalid":
+                                continue
+                            
+                            #get the first byte in hex
+                            first_byte = instr["bytes"][:2]
+                            opcodes_list += first_byte
+                            
+                            #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
+                            self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
+                            
+                            
+                            asm += hex(instr["offset"]) + "   " + instr["opcode"]
+                            #get comment if possible
+                            try:
+                                cmt = api.ida_bytes.get_cmt(cur_addr, True).replace('\n', ' ')
+                                asm += '   ;' + cmt
+                            except:
+                                pass
+                            asm += "\n" 
+                            
+                            
+                            #check if the instruction is of type 'call'
+                            if instr["type"] == "call" and "jump" in instr:
+                                target_name = instr["opcode"].split()[-1]
+                                call_instr = None
+                                if target_name[:sym_imp_l] == "sym.imp":
+                                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True)
+                                elif target_name[:len("sub.")] == "sub.":
+                                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True)
+                                elif target_name[:len("sym.")] == "sym." and target_name[len("sym."):] in imports_dict:
+                                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sym."):], True)
+                                else:
+                                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
+                                flow_insns.append(call_instr)
+                            #check if the instruction is of type 'jump'
+                            elif (instr["type"] == "cjmp" or instr["type"] == "jmp") and "jump" in instr:
+                                target = instr["jump"]
+                                jumpout = target < start or target >= end
+                                jump_instr = matching.JumpInsn(instr["offset"], instr["size"], target, jumpout)
+                                flow_insns.append(jump_instr)
+                            
+                            insns_list.append(instr["bytes"].decode("hex"))
+                            '''
                             mnem = op[2]
                             
-                            asm += hex(cur_addr) + "   " + mnem + " " + op[3] #op[2]--> mnemonic, op[3]-->op_str
+                            call_check, jump_check = checkFlow(cpu, mnem)
+                            
+                            addasm = True
+                            if call_check:
+                                is_num = True
+                                try: target = int(op[3], 16)
+                                except:
+                                    is_num = False
+                                if is_num:
+                                    is_api = False
+                                    target_name = op[3]
+                                    try:
+                                        print hex(target+cur_addr-ins_size), list(api.idautils.CodeRefsFrom(target+cur_addr-ins_size, 1))
+                                        for e in list(api.idautils.CodeRefsFrom(target+cur_addr-ins_size, 1)):
+                                            if e in imports_map:
+                                                print "%x-->%s" % (e,imports_map[e])
+                                    except:
+                                        pass
+                                    for imp in self.data['imports']:
+                                        if is_api:
+                                            break
+                                        if target == imp["addr"]:
+                                            is_api = True
+                                            target_name = imp['name']
+                                            break
+                                        if target + cur_addr - ins_size == imp["addr"]:
+                                            is_api = True
+                                            target_name = imp['name']
+                                            target += cur_addr - ins_size
+                                            break
+                                        
+                                        for addr in api.idautils.CodeRefsTo(imp['addr'], 1):
+                                            print addr
+                                            if addr == target:
+                                                is_api = True
+                                                target_name = imp['name']
+                                                break
+                                            if addr == target + cur_addr - ins_size:
+                                                is_api = True
+                                                target_name = imp['name']
+                                                target += cur_addr - ins_size
+                                                break
+                                    
+                                    ci = matching.CallInsn(cur_addr, ins_size, target, target_name, is_api)
+                                    flow_insns.append(ci)
+                                    
+                                    if not is_api:
+                                        if (target + cur_addr - ins_size) in funcs_map:
+                                            target += cur_addr - ins_size
+                                            target_name = funcs_map[target]
+                                        elif target in funcs_map:
+                                            target_name = funcs_map[target]
+                                    
+                                    asm += hex(cur_addr) + "   " + mnem + " " + target_name
+                                    addasm = False
+                            elif jump_check:
+                                is_num = True
+                                try: target = int(op[3], 16)
+                                except:
+                                    is_num = False
+                                if is_num:
+                                    jumpout = target < start or target > end
+                                    fi = matching.JumpInsn(cur_addr, ins_size, target, jumpout)
+                                    flow_insns.append(fi)
+
+                            if addasm:                                
+                                asm += hex(cur_addr) + "   " + mnem + " " + op[3] #op[2]--> mnemonic, op[3]-->op_str
+                            
                             insns_list.append(buf)
                             opcodes_list += buf[0]
                             
                             #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
                             self.data["codebytes"][buf[0]] = self.data["codebytes"].get(buf[0], 0) +1
-                        
+                            
                             #get comment if possible
                             try:
                                 #cmt = api.ida_bytes.get_cmt(cur_addr, True).replace('\n', '\n   '+' '*len(asm))
@@ -319,34 +475,8 @@ class BinaryInfo(object):
                                 asm += '   ;' + cmt
                             except:
                                 pass
-                            asm += "\n"
-                            
-                            call_check, jump_check = checkFlow(cpu, mnem)
-
-                            if call_check:
-                                is_num = True
-                                try: target = int(op[3], 16)
-                                except:
-                                    is_num = False
-                                if is_num:
-                                    isApi = op[3] in imports_map
-                                    #TODO recognize api calls with xrefs
-                                    target_name = op[3]
-                                    if isApi:
-                                        target_name = target_name[op[3]]
-
-                                    ci = matching.CallInsn(cur_addr, ins_size, target, target_name, isApi)
-                                    flow_insns.append(ci)
-                            elif jump_check:
-                                is_num = True
-                                try: target = int(op[3], 16)
-                                except:
-                                    is_num = False
-                                if is_num:
-                                    jumpout = target  < start or target > end
-                                    fi = matching.JumpInsn(cur_addr, target, target, jumpout)
-                                    flow_insns.append(fi)
-
+                            asm += "\n"         
+                            '''      
                         cur_addr = next_instr
 
                     #get raw bytes from function
@@ -489,11 +619,17 @@ class BinaryInfo(object):
         imports = self.r2.cmdj('iij')
         
         self.data["imports"] = []
+        imports_dict = {}
         for imp in imports:
             i = {
                 "name": imp["name"],
                 "addr": imp["plt"] #??? for PE binaries?
             }
+            for lib in self.data["libs"]:
+                if len(imp["name"]) > len(lib) and imp["name"][:len(lib)] == lib:
+                    imports_dict[imp["name"][len(lib):]] = imp["plt"]
+                    break
+            
             self.data["imports"].append(i)
         
         #r2 cmd ilj : get exported symbols in json
@@ -567,6 +703,8 @@ class BinaryInfo(object):
                                 call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True)
                             elif target_name[:len("sub.")] == "sub.":
                                 call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True)
+                            elif target_name[:len("sym.")] == "sym." and target_name[len("sym."):] in imports_dict:
+                                call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sym."):], True)
                             else:
                                 call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
                             flow_insns.append(call_instr)
