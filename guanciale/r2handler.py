@@ -94,7 +94,7 @@ class open:
         try:
             data = json.loads(self.cmd(cmd))
         except (ValueError, KeyError, TypeError) as e:
-            sys.stderr.write ("r2pipe.cmdj.Error: %s\n"%(e))
+            #sys.stderr.write ("r2pipe.cmdj.Error: %s\n"%(e))
             data = None
         return data
 
