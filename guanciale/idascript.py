@@ -112,7 +112,7 @@ def getCallConv(func_info):
     else:
        return ''
 
-def metapcFlow(call_check, jump_check, jump_insns, call_insns):
+def theFlow(call_check, jump_check, jump_insns, call_insns):
     if call_check:
         op = idc.GetOpnd(cur_addr, 0)
         op_type = idc.GetOpType(cur_addr, 0)
@@ -146,10 +146,11 @@ def metapcFlow(call_check, jump_check, jump_insns, call_insns):
             jumpout = target  < start or target > end
             jump_insns.append((cur_addr, size, target, jumpout))
 
-avrFlow = metapcFlow
-ppcFlow = metapcFlow
-mipsFlow = metapcFlow
-armFlow = metapcFlow
+metapc = theFlow
+avrFlow = theFlow
+ppcFlow = theFlow
+mipsFlow = theFlow
+armFlow = theFlow
 
 def checkFlow(arch, mnem):
     if arch == 'metapc':
@@ -165,7 +166,7 @@ def checkFlow(arch, mnem):
         check = mnem.startswith('B')
         return check and 'L' in mnem, check and 'L' not in mnem, armFlow
     else:
-        return False, False, metapcFlow
+        return False, False, theFlow
 
 #wait for IDA analysys to complete
 idaapi.autoWait()
