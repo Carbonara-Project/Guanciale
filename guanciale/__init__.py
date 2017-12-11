@@ -272,28 +272,19 @@ class BinaryInfo(object):
         with idb.from_file(filename) as db:
             api = idb.IDAPython(db)
 
-            api.idc.dis = capstone.Cs(self.arch.cs_arch, self.arch.cs_mode)
-            #required to fetch operand values
-            api.idc.dis.detail = True
-            
             ida_funcs = api.idautils.Functions()
-            
-            funcs_map = {}
-            
-            for func in ida_funcs:
-                fcn_name = api.idc.GetFunctionName(func)
-                start = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_START)
-                funcs_map[func] = fcn_name
             
             sym_imp_l = len("sym.imp")
             
             with status.Status(len(ida_funcs)) as bar:
                 count = 0
+                import sys
                 #iterate for each function
                 for func in ida_funcs:
+                    #sys.stderr.write("begin: %d\n"%func)
                     try:
                         fcn_name = api.idc.GetFunctionName(func)
-
+                        
                         start = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_START)
                         end = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_END)
 
@@ -304,14 +295,22 @@ class BinaryInfo(object):
                         insns_list = []
                         opcodes_list = ""
                         
-                        '''get radare intructions, iterate, if not present assemble the single instruction.
+                        '''
+                        get radare intructions, iterate, if not present assemble the single instruction.
                         s instr_addr
                         pdj 1 OR pdr
                         '''
-                        
-                        self.r2.cmdj('s ' + hex(start))
+                        '''sys.stderr.write("ppp1\n")
+                        self.r2.cmd('s ' + hex(start))
+                        sys.stderr.write(self.r2.cmd('pdr'))
                         temp_d = self.r2.cmdj('pdrj')
+                        sys.stderr.write("jj\n")
+                        if temp_d == None:
+                            temp_d = self.r2.cmdj('pdj')
+                        '''
+                        temp_d = []
                         temp_ins = {}
+                        
                         for ins in temp_d:
                             if "offset" in ins:
                                 temp_ins[ins["offset"]] = ins
@@ -325,15 +324,17 @@ class BinaryInfo(object):
                                 size = end - cur_addr
                             else:
                                 size = next_instr - cur_addr
-                            
+                            #print cur_addr
                             flags = api.idc.GetFlags(cur_addr)
                             if api.ida_bytes.isCode(flags):
                                 instr = None
                                 if cur_addr in temp_ins:
                                     instr = temp_ins[cur_addr]
                                 else:
-                                    self.r2.cmdj('s ' + hex(cur_addr))
+                                    self.r2.cmd('s ' + hex(cur_addr))
+                                    print "pre3"
                                     temp_d = self.r2.cmdj('pdrj')
+                                    #print temp_d
                                     if temp_d == None:
                                         break
                                     for ins in temp_d:
@@ -343,7 +344,7 @@ class BinaryInfo(object):
                                                 instr = ins
                                 if instr == None:
                                     break
-                                
+                                #print instr["opcode"]
                                 if instr["type"] == "invalid":
                                     continue
                                 
@@ -388,7 +389,7 @@ class BinaryInfo(object):
                                 insns_list.append(instr["bytes"].decode("hex"))
                                     
                             cur_addr = next_instr
-
+                        
                         #get raw bytes from function
                         fcn_bytes = api.idc.GetManyBytes(start, end-start)
 
@@ -407,6 +408,7 @@ class BinaryInfo(object):
                         self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), start, fcn_call_conv, flow_insns)
                         
                     except Exception as err:
+                        print err
                         print("error on function %s, skipped" % fcn_name)    
                     count += 1
                     bar.update(count)
@@ -507,7 +509,7 @@ class BinaryInfo(object):
         :param str filename: The name of the IDA databse or its path
         '''
         
-        if config.idacmd == None:
+        if config.idacmd == None or True:
             print("IDA Pro not found, using built-in idb parsing module.\nThe output may not be accurate.")
             self._parseIDB(filename)
         else:
