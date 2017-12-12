@@ -299,15 +299,15 @@ class BinaryInfo(object):
                         get radare intructions, iterate, if not present assemble the single instruction.
                         s instr_addr
                         pdj 1 OR pdr
-                        '''
-                        '''sys.stderr.write("ppp1\n")
+                        
+                        sys.stderr.write("ppp1\n")'''
                         self.r2.cmd('s ' + hex(start))
-                        sys.stderr.write(self.r2.cmd('pdr'))
+                        sys.stderr.write(self.r2.cmd('pdrj'))
                         temp_d = self.r2.cmdj('pdrj')
                         sys.stderr.write("jj\n")
                         if temp_d == None:
                             temp_d = self.r2.cmdj('pdj')
-                        '''
+                        
                         temp_d = []
                         temp_ins = {}
                         
@@ -332,9 +332,10 @@ class BinaryInfo(object):
                                     instr = temp_ins[cur_addr]
                                 else:
                                     self.r2.cmd('s ' + hex(cur_addr))
-                                    print "pre3"
+                                    sys.stderr.write("jj\n")
                                     temp_d = self.r2.cmdj('pdrj')
-                                    #print temp_d
+                                    sys.stderr.write(self.r2.cmd('pdrj'))
+                                    sys.stderr.write("\nCCCCC\n")
                                     if temp_d == None:
                                         break
                                     for ins in temp_d:
@@ -391,8 +392,13 @@ class BinaryInfo(object):
                             cur_addr = next_instr
                         
                         #get raw bytes from function
-                        fcn_bytes = api.idc.GetManyBytes(start, end-start)
-
+                        try:
+                            fcn_bytes = api.idc.GetManyBytes(start, end-start)
+                        except:
+                            self.r2.cmd('s ' + hex(start))
+                            #r2 cmd p6e : get bytes of a function in base64
+                            fcn_bytes = base64.b64decode(self.r2.cmd('p6e ' + str(end-start)).rstrip())
+                        
                         #get callconv => NOT WORKING
                         #flags = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_FLAGS)
                         #callconv = api.idc.get_optype_flags1(flags)
@@ -408,8 +414,9 @@ class BinaryInfo(object):
                         self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), start, fcn_call_conv, flow_insns)
                         
                     except Exception as err:
-                        print err
-                        print("error on function %s, skipped" % fcn_name)    
+                        print asm
+                        print err.message
+                        print("error on function %s, skipped" % fcn_name)  
                     count += 1
                     bar.update(count)
         
@@ -584,7 +591,7 @@ class BinaryInfo(object):
                     fcn_name = func["name"]
                     fcn_call_conv = func["calltype"]
                     
-                    self.r2.cmd('s ' + fcn_name)
+                    self.r2.cmd('s ' + hex(fcn_offset))
                     
                     #r2 cmd pdrj : get assembly from a function in json
                     fcn_instructions = self.r2.cmdj('pdrj')

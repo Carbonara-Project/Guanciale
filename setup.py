@@ -24,6 +24,7 @@ setup(
             'requests',
             'python-idb',
             'archinfo',
-            'carbonara-pyvex'
+            'carbonara-pyvex',
+            'appdirs'
     ]
 )

@@ -2,3 +2,4 @@ python-idb
 archinfo
 carbonara-pyvex
 requests
+appdirs

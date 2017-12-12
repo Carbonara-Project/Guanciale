@@ -12,8 +12,11 @@ import requests
 import platform
 import shutil
 import sys
+import appdirs
+from distutils.dir_util import mkpath
 
-radare2 = None
+dirs = appdirs.AppDirs("guanciale")
+
 idacmd = None
 ida64cmd = None
 usewine = False
@@ -26,15 +29,15 @@ def _downloadRadare():
         return None
     files = r.text.split("\n")
     
-    try: os.mkdir(os.path.join(os.path.dirname(__file__), "radare2"))
-    except: pass
+    r2folder = os.path.join(dirs.user_data_dir, "radare2")
+    mkpath(r2folder)
     
     r2 = None
     for filename in files:
         if filename.strip() == "":
             continue
         
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "radare2", filename)
+        path = os.path.join(r2folder, filename)
         if "radare2" in filename:
             r2 = path
         url = "https://carbonara-project.github.io/Carbonara-Downloads/" + platform.system() + "/" + platform.machine() + "/" + filename
@@ -243,7 +246,7 @@ def writeConfig():
         "usewine": usewine
     }
     try:
-        config_file = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "carbonara_guanciale.config.json"), "w")
+        config_file = open(os.path.join(os.path.dirname(dirs.user_config_dir), "carbonara_guanciale.config.json"), "w")
     except IOError as err:
         if err.errno == 13: #permission denied
             print("Permission denied to write to the config file, try to run me as root.")
@@ -266,7 +269,7 @@ def populate():
     
     #read config file
     try:
-        config_file = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "carbonara_guanciale.config.json"))
+        config_file = open(os.path.join(os.path.dirname(dirs.user_config_dir), "carbonara_guanciale.config.json"))
         config_json = json.load(config_file)
         config_file.close()
         if "radare2" in config_json:
