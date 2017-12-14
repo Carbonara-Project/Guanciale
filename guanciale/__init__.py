@@ -147,12 +147,13 @@ class BinaryInfo(object):
                 "raw": base64.b64encode(raw),
                 "asm": asm,
                 "callconv": callconv,
-                "apicalls": [],
+                "apicalls": handler.api,
                 "arch": self.arch.name
             }
         }
 
         
+        proc["proc_desc"]["flow_hash"] = handler.flowhash.encode("hex")
         proc["proc_desc"]["vex_hash"] = handler.vexhash.encode("hex")
         proc["proc_desc"]["full_hash"] = hashlib.md5(raw).hexdigest()
         self.data["procs"].append(proc)
@@ -497,6 +498,7 @@ class BinaryInfo(object):
 
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
+                    print err
                     print("error on function %s, skipped" % func["name"])
                 count += 1
                 bar.update(count)
