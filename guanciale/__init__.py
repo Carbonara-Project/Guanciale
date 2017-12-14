@@ -147,21 +147,14 @@ class BinaryInfo(object):
                 "raw": base64.b64encode(raw),
                 "asm": asm,
                 "callconv": callconv,
-                "apicalls": [],
+                "apicalls": handler.api,
                 "arch": self.arch.name
             }
         }
 
-        for api in handler.api:
-            proc["proc_desc"]["apicalls"].append({"name": api})
         
-        proc["proc_desc"]["hash1"] = handler.api_hash.encode("hex")
-        proc["proc_desc"]["hash2"] = handler.internals_hash.encode("hex")
-        proc["proc_desc"]["hash3"] = handler.jumps_flow_hash.encode("hex")
-        proc["proc_desc"]["hash4"] = handler.flow_hash.encode("hex")
-        proc["proc_desc"]["hash5"] = handler.consts_hash.encode("hex")
-        proc["proc_desc"]["hash6"] = handler.vex_code_hash.encode("hex")
-        proc["proc_desc"]["hash7"] = hashlib.md5(str(ops)).digest().encode("hex")
+        proc["proc_desc"]["flow_hash"] = handler.flowhash.encode("hex")
+        proc["proc_desc"]["vex_hash"] = handler.vexhash.encode("hex")
         proc["proc_desc"]["full_hash"] = hashlib.md5(raw).hexdigest()
         self.data["procs"].append(proc)
 
@@ -438,9 +431,9 @@ class BinaryInfo(object):
             idascript.replace(os.path.sep, "\\")
         
         if file_ext == '.idb':
-            process = subprocess.Popen('"'+ config.idacmd + '" -A -S"' + idascript + dumpname +'" ' + filename, shell=True)
+            process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True)
         elif file_ext == '.i64':
-            process = subprocess.Popen('"'+ config.ida64cmd + '" -A -S"' + idascript + dumpname +'" ' + filename, shell=True)
+            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True)
         else:
             raise RuntimeError('file not supported')
         process.wait()
@@ -505,6 +498,7 @@ class BinaryInfo(object):
 
                     self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
+                    print err
                     print("error on function %s, skipped" % func["name"])
                 count += 1
                 bar.update(count)
@@ -516,7 +510,7 @@ class BinaryInfo(object):
         :param str filename: The name of the IDA databse or its path
         '''
         
-        if config.idacmd == None or True:
+        if config.idacmd == None:
             print("IDA Pro not found, using built-in idb parsing module.\nThe output may not be accurate.")
             self._parseIDB(filename)
         else:
@@ -582,6 +576,7 @@ class BinaryInfo(object):
             count = 0
             for func in funcs_dict:
                 try:
+                #if True:
                     #skip library symbols
                     if len(func["name"]) >= sym_imp_l and func["name"][:sym_imp_l] == "sym.imp":
                         continue
@@ -604,6 +599,7 @@ class BinaryInfo(object):
                     opcodes_list = ""
                     
                     flow_insns = []
+                    targets = {}
                     
                     for instr in fcn_instructions:
                         if instr["type"] == "invalid":
@@ -635,6 +631,7 @@ class BinaryInfo(object):
                             else:
                                 call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
                             flow_insns.append(call_instr)
+                            
                         #check if the instruction is of type 'jump'
                         elif (instr["type"] == "cjmp" or instr["type"] == "jmp") and "jump" in instr:
                             target = instr["jump"]
