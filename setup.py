@@ -25,6 +25,7 @@ setup(
             'python-idb',
             'archinfo',
             'carbonara-pyvex',
-            'appdirs'
+            'appdirs',
+            'datasketch'
     ]
 )
