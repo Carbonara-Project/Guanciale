@@ -146,7 +146,7 @@ def theFlow(call_check, jump_check, jump_insns, call_insns):
             jumpout = target  < start or target > end
             jump_insns.append((cur_addr, size, target, jumpout))
 
-metapc = theFlow
+metapcFlow = theFlow
 avrFlow = theFlow
 ppcFlow = theFlow
 mipsFlow = theFlow
@@ -215,7 +215,6 @@ for exp in list(idautils.Entries()):
 
 #iterate through functions
 for func in idautils.Functions():
-
     #if func from library skip
     flags = idc.GetFunctionFlags(func)
     if flags & FUNC_LIB or flags & FUNC_THUNK or flags & FUNC_HIDDEN:
@@ -223,7 +222,6 @@ for func in idautils.Functions():
 
     #get procedure name
     name = idc.GetFunctionName(func)
-
     #get procedure callconv
     func_info = idc.GetType(func)
     callconv = getCallConv(func_info)
@@ -288,7 +286,7 @@ for func in idautils.Functions():
         'ops': ops
     }
     data['procedures'].append(proc_data)
-
+    
 json.dump(data, dump)
 
 dump.close()

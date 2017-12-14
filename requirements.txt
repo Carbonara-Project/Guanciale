@@ -3,3 +3,4 @@ archinfo
 carbonara-pyvex
 requests
 appdirs
+datasketch
