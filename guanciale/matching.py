@@ -5,10 +5,9 @@ __copyright__ = "Copyright 2017, Carbonara Project"
 __license__ = "BSD 2-clause"
 __email__ = "andreafioraldi@gmail.com, rop2bash@gmail.com"
 
-import archinfo
-import hashlib
 import sys
 import datasketch
+import carbonara_archinfo as archinfo
 import carbonara_pyvex as pyvex
 
 if sys.version_info[0] < 3:

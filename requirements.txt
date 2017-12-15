@@ -1,5 +1,5 @@
 carbonara-idb
-archinfo
+carbonara-archinfo
 carbonara-pyvex
 requests
 appdirs
