@@ -9,8 +9,7 @@ import archinfo
 import hashlib
 import sys
 import datasketch
-#import pyvex
-pyvex = __import__("carbonara_pyvex")
+import carbonara_pyvex as pyvex
 
 if sys.version_info[0] < 3:
     range = xrange

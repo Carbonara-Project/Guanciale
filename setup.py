@@ -22,7 +22,7 @@ setup(
     packages=['guanciale'],
     install_requires=[
             'requests',
-            'python-idb',
+            'carbonara-idb',
             'archinfo',
             'carbonara-pyvex',
             'appdirs',
