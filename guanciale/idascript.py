@@ -231,6 +231,7 @@ for func in idautils.Functions():
     cur_addr = start
     
     asm = ''
+    ops = ''
     insns_list = []
     call_insns = []
     jump_insns = []
@@ -252,6 +253,12 @@ for func in idautils.Functions():
             pass
         curr_asm += '\n'
         asm += curr_asm
+
+        #get first byte of instruction
+        opc = hex(ord(idc.GetManyBytes(cur_addr, 1)))[2:]
+        if len(opc) < 2:
+            opc = '0'+opc
+        ops += opc
 
         #get instruction bytes
         insns_list.append(base64.b64encode(idc.GetManyBytes(cur_addr, size)))
@@ -275,7 +282,8 @@ for func in idautils.Functions():
         'asm': asm,
         'call_insns': call_insns,
         'jump_insns': jump_insns,
-        'insns_list': insns_list
+        'insns_list': insns_list,
+        'ops': ops
     }
     data['procedures'].append(proc_data)
     
@@ -285,3 +293,4 @@ dump.close()
 
 #stop script
 idc.Exit(0)
+

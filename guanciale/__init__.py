@@ -328,9 +328,11 @@ class BinaryInfo(object):
                                     cur_addr = next_instr
                                     continue
                                 
+                                #get the first byte in hex
+                                first_byte = instr["bytes"][:2]
+
                                 #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
                                 self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
-                                
                                 
                                 asm += hex(instr["offset"]) + "   " + instr["opcode"]
                                 #get comment if possible
@@ -457,6 +459,7 @@ class BinaryInfo(object):
                     insns_list = []
                     for ins in func['insns_list']:
                         insns_list.append(base64.b64decode(ins))
+                    opcodes_list = func['ops']
                     
                     #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
                     for i in range(0, len(opcodes_list), 2):
