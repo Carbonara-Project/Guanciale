@@ -11,7 +11,7 @@ import platform
 
 setup(
     name='guanciale',
-    version="1.0.4",
+    version="1.0.6",
     license=__license__,
     description='Grab information needed by Carbonara',
     author=__author__,
