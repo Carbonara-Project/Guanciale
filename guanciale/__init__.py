@@ -271,10 +271,9 @@ class BinaryInfo(object):
             
             with status.Status(len(ida_funcs)) as bar:
                 count = 0
-                import sys
+                
                 #iterate for each function
                 for func in ida_funcs:
-                    #sys.stderr.write("begin: %d\n"%func)
                     try:
                         fcn_name = api.idc.GetFunctionName(func)
                         
@@ -288,20 +287,11 @@ class BinaryInfo(object):
                         insns_list = []
                         opcodes_list = ""
                         
-                        '''
-                        get radare intructions, iterate, if not present assemble the single instruction.
-                        s instr_addr
-                        pdj 1 OR pdr
-                        
-                        sys.stderr.write("ppp1\n")'''
                         self.r2.cmd('s ' + hex(start))
-                        sys.stderr.write(self.r2.cmd('pdrj'))
-                        temp_d = self.r2.cmdj('pdrj')
-                        sys.stderr.write("jj\n")
+                        temp_d = self.r2.cmdj('pdj')
                         if temp_d == None:
-                            temp_d = self.r2.cmdj('pdj')
+                            raise RuntimeError("radare ignored %s" % fcn_name)
                         
-                        temp_d = []
                         temp_ins = {}
                         
                         for ins in temp_d:
@@ -311,7 +301,7 @@ class BinaryInfo(object):
                         #get assembly from function
                         while cur_addr <= end:
                             next_instr = api.idc.NextHead(cur_addr)
-
+                            
                             #get size instr
                             if next_instr > end:
                                 size = end - cur_addr
@@ -325,10 +315,7 @@ class BinaryInfo(object):
                                     instr = temp_ins[cur_addr]
                                 else:
                                     self.r2.cmd('s ' + hex(cur_addr))
-                                    sys.stderr.write("jj\n")
-                                    temp_d = self.r2.cmdj('pdrj')
-                                    sys.stderr.write(self.r2.cmd('pdrj'))
-                                    sys.stderr.write("\nCCCCC\n")
+                                    temp_d = self.r2.cmdj('pdj')
                                     if temp_d == None:
                                         break
                                     for ins in temp_d:
@@ -336,10 +323,12 @@ class BinaryInfo(object):
                                             temp_ins[ins["offset"]] = ins
                                             if ins["offset"] == cur_addr:
                                                 instr = ins
+                                    
                                 if instr == None:
                                     break
                                 #print instr["opcode"]
                                 if instr["type"] == "invalid":
+                                    cur_addr = next_instr
                                     continue
                                 
                                 #get the first byte in hex
@@ -358,7 +347,6 @@ class BinaryInfo(object):
                                 except:
                                     pass
                                 asm += "\n" 
-                                
                                 
                                 #check if the instruction is of type 'call'
                                 if instr["type"] == "call" and "jump" in instr:
@@ -381,9 +369,8 @@ class BinaryInfo(object):
                                     flow_insns.append(jump_instr)
                                 
                                 insns_list.append(instr["bytes"].decode("hex"))
-                                    
+                                
                             cur_addr = next_instr
-                        
                         #get raw bytes from function
                         try:
                             fcn_bytes = api.idc.GetManyBytes(start, end-start)
