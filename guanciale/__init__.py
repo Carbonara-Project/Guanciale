@@ -108,7 +108,7 @@ class BinaryInfo(object):
         if "r2" in self.__dict__:
             self.r2.quit()
 
-    def addProc(self, name, asm, raw, insns_list, ops, offset, callconv, flow):
+    def addProc(self, name, asm, raw, insns_list, offset, callconv, flow):
         """
         BinaryInfo.addProc generate a dictionary with the informations needed to describe a procedure and add it to the procedures list
         
@@ -122,8 +122,6 @@ class BinaryInfo(object):
             Assembly code
         raw: str
             The bytes of the procedure
-        insns_list: list
-            List of instructions in the procedure (in bytes)
         ops: str
             Concatenation of the first bytes of each instruction
         offset: int
@@ -285,7 +283,6 @@ class BinaryInfo(object):
                         flow_insns = []
                         asm = ''
                         insns_list = []
-                        opcodes_list = ""
                         
                         self.r2.cmd('s ' + hex(start))
                         temp_d = self.r2.cmdj('pdj')
@@ -330,10 +327,6 @@ class BinaryInfo(object):
                                 if instr["type"] == "invalid":
                                     cur_addr = next_instr
                                     continue
-                                
-                                #get the first byte in hex
-                                first_byte = instr["bytes"][:2]
-                                opcodes_list += first_byte
                                 
                                 #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
                                 self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
@@ -391,10 +384,9 @@ class BinaryInfo(object):
                             print ii
                         print
                         '''
-                        self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), start, fcn_call_conv, flow_insns)
+                        self.addProc(fcn_name, asm, fcn_bytes, insns_list, start, fcn_call_conv, flow_insns)
                         
                     except Exception as err:
-                        print asm
                         print err.message
                         print("error on function %s, skipped" % fcn_name)  
                     count += 1
@@ -465,7 +457,6 @@ class BinaryInfo(object):
                     insns_list = []
                     for ins in func['insns_list']:
                         insns_list.append(base64.b64decode(ins))
-                    opcodes_list = func['ops']
                     
                     #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
                     for i in range(0, len(opcodes_list), 2):
@@ -483,7 +474,7 @@ class BinaryInfo(object):
                         jump_instr = matching.JumpInsn(*(ji))
                         flow_insns.append(jump_instr)             
 
-                    self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
+                    self.addProc(fcn_name, asm, fcn_bytes, insns_list, fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
                     print err
                     print("error on function %s, skipped" % func["name"])
@@ -583,7 +574,6 @@ class BinaryInfo(object):
                     
                     insns_list = []
                     asm = ""
-                    opcodes_list = ""
                     
                     flow_insns = []
                     targets = {}
@@ -594,8 +584,7 @@ class BinaryInfo(object):
                         
                         #get the first byte in hex
                         first_byte = instr["bytes"][:2]
-                        opcodes_list += first_byte
-                        
+
                         #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
                         self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
                         
@@ -628,7 +617,7 @@ class BinaryInfo(object):
                         
                         insns_list.append(instr["bytes"].decode("hex"))
                     
-                    self.addProc(fcn_name, asm, fcn_bytes, insns_list, opcodes_list.decode("hex"), fcn_offset, fcn_call_conv, flow_insns)
+                    self.addProc(fcn_name, asm, fcn_bytes, insns_list, fcn_offset, fcn_call_conv, flow_insns)
                 except Exception as err:
                     print err
                     print("error on function %s, skipped" % func["name"])
