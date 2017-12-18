@@ -116,7 +116,6 @@ class ProcedureHandler(object):
         bb.append(self.size)
         consts = {}
         ips = []
-        #vex_code = []
         
         pc_offset = self.arch.registers["pc"][0]
         regs = {}
@@ -152,7 +151,7 @@ class ProcedureHandler(object):
                         # constants replace
                         for j in range(len(stmts[i].constants)):
                             if stmts[i].constants[j].value in self.targets:
-                                stmts[i].constants[j] = StrConst(self.targets[c.value])
+                                stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
                         
                         # registers abstraction
                         regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
@@ -183,6 +182,7 @@ class ProcedureHandler(object):
             addrs[ips[i]] = i
         
         vexhash = datasketch.MinHash(num_perm=64)
+        #vex_code = []
         
         for irsb in irsbs:
             stmts = irsb.statements
@@ -207,8 +207,12 @@ class ProcedureHandler(object):
         lean_vexhash.serialize(vexhash_buf)
         
         self.vexhash = str(vexhash_buf)
-
-
+        '''
+        for v in vex_code:
+            print v
+        print
+        print
+        '''
 
     def liftByInsns(self):
         consts = {}
@@ -221,9 +225,15 @@ class ProcedureHandler(object):
 
         for instr in self.insns_list:
             #manage instruction not recognized by libVEX
-            if instr == "\xf4" and (self.arch.name == "X86" or self.arch.name == "AMD64"): #hlt x86 instruction
-                irsbs.append("HALT")
-                continue
+            if self.arch.name == "X86" or self.arch.name == "AMD64":
+                if instr == "\xf4": #hlt x86 instruction
+                    irsbs.append("HALT")
+                    continue
+                elif instr.startswith("\xf0"): #lock x86 prefix
+                    irsbs.append("LOCK")
+                    if len(instr) == 1:
+                        continue
+                    instr = instr[1:]
             try:
                 irsb = pyvex.IRSB(instr, 0, self.arch, opt_level=0)
             except pyvex.errors.PyVEXError as err:
@@ -257,7 +267,7 @@ class ProcedureHandler(object):
                         # constants replace
                         for j in range(len(stmts[i].constants)):
                             if stmts[i].constants[j].value in self.targets:
-                                stmts[i].constants[j] = StrConst(self.targets[c.value])
+                                stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
                         
                         # registers abstraction
                         regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
@@ -330,14 +340,12 @@ class ProcedureHandler(object):
     def handleFlow(self):
         
         #TODO replace sorting loops with sorted function
-        api = []
-        internals = []
-        jumps = []
-        api_str = ""
-
         self.targets = {}
         self.api = []
-        #self.flow = []
+        #flow = []
+        
+        addrs = []
+        internals = []
         
         for instr in self.bb_insns:
             if isinstance(instr, CallInsn):
@@ -349,18 +357,16 @@ class ProcedureHandler(object):
                     internals.append(instr.addr)
                     
             else:
-                if instr.addr not in self.targets:
-                    if instr.jumpout:
-                        internals.append(instr.addr)
-                    else:
-                        jumps.append(instr.addr)
+                if instr.jumpout:
+                    internals.append(instr.addr)
+                else:
+                    addrs.append(instr.addr)
+                    addrs.append(instr.offset)
         
-        jumps.sort()
-        jumps_dict = {}
-        for i in range(len(jumps)):
-            jumps_dict[jumps[i]] = i
-            
-            self.targets[jumps[i]] = "JMP:" + str(i)
+        addrs.sort()
+        addrs_dict = {}
+        for i in range(len(addrs)):
+            addrs_dict[addrs[i]] = i
         
         internals_sorted = internals[:]
         internals_sorted.sort()
@@ -368,26 +374,28 @@ class ProcedureHandler(object):
         for i in range(len(internals_sorted)):
             calleds_dict[internals_sorted[i]] = str(i)
             
-            self.targets[internals_sorted[i]] = "OUT:" + hex(i)
-        
         flowhash = datasketch.MinHash(num_perm=32)
         
         for instr in self.bb_insns:
             if isinstance(instr, CallInsn):
                 if instr.is_api:
-                    #self.flow.append("API:" + instr.fcn_name)
+                    #flow.append("API:" + instr.fcn_name)
                     flowhash.update("API:" + instr.fcn_name)
                 else:
-                    #self.flow.append("OUT:" + calleds_dict[instr.addr])
+                    #flow.append("OUT:" + calleds_dict[instr.addr])
                     flowhash.update("OUT:" + calleds_dict[instr.addr])
+                    self.targets[instr.addr] = "OUT:" + calleds_dict[instr.addr]
             else:
-                if instr.addr not in self.targets:
-                    if instr.jumpout:
-                        #self.flow.append("OUT:" + calleds_dict[instr.addr])
-                        flowhash.update("OUT:" + calleds_dict[instr.addr])
-                    else:
-                        #self.flow.append("JMP:" + jumps_dict[instr.addr])
-                        flowhash.update("JMP:" + jumps_dict[instr.addr])
+                if instr.jumpout:
+                    #flow.append("OUT:" + calleds_dict[instr.addr])
+                    flowhash.update("OUT:" + calleds_dict[instr.addr])
+                    self.targets[instr.addr] = "OUT:" + calleds_dict[instr.addr]
+                else:
+                    off = addrs_dict[instr.offset]
+                    tgt = addrs_dict[instr.addr]
+                    #flow.append("%x (%d)   JMP:%s   - %x (%d)" % (instr.offset, off, str(tgt - off), instr.addr, tgt))
+                    flowhash.update("JMP:" + str(tgt - off))
+                    self.targets[instr.addr] = "JMP:" + str(tgt - off)
         
         lean_flowhash = datasketch.LeanMinHash(flowhash)
         flowhash_buf = bytearray(lean_flowhash.bytesize())
@@ -396,7 +404,7 @@ class ProcedureHandler(object):
         self.flowhash = str(flowhash_buf)
         
         '''
-        for f in self.flow:
+        for f in flow:
             print f
+        print
         '''
-
