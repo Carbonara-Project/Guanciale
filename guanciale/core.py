@@ -6,10 +6,18 @@ import status
 import hashlib
 import base64
 import os
+import json
+import subprocess
+import random
+import string
 from errors import *
 
 def printerr(s):
     sys.stderr.write(str(s) + "\n")
+
+def printout(s):
+    sys.stdout.write(s)
+    sys.stdout.flush()
 
 _MODE_R2 = 0
 _MODE_IDA = 1
@@ -19,15 +27,29 @@ R2PLUGIN = 0xABADCAFE
 
 class BinaryInfo(object):
 
+    def _cmd_j(self, cmd):
+        o = self.r2.cmd(cmd)
+        try:
+            r = json.loads(o)
+        except:
+            return None
+        return r
+
     def __init__(self, filename):
         
         if filename == R2PLUGIN:
             self.r2 = r2pipe.open("#!pipe")
-            filename = self.r2.cmdj("oj")["uri"]
+            oj = self._cmd_j("oj")
+            if oj == None:
+                raise RuntimeError("BinaryInfo.__init__: please open a file in radare2!")
+            filename = oj[0]["uri"]
+            self.r2plugin = True
+            print " >> Working on %s as radare2 plugin" % filename
         else:
             self.r2 = r2pipe.open(filename)
         
         #open the binary file and compute md5 and sha256 hash
+        printout(" [ ] Computing hashes of the entire binary")
         binfile = open(filename, "rb")
         self.content = binfile.read()
         
@@ -37,6 +59,7 @@ class BinaryInfo(object):
         sha256_dig = hash_object.hexdigest()
         
         binfile.close()
+        printout("\r [*] Computing hashes of the entire binary\n")
         
         self.md5 = md5_dig
         
@@ -49,12 +72,16 @@ class BinaryInfo(object):
             "codebytes": {}
         }
         
-         #get  binary properties
-        self.data["info"] = self.r2.cmdj('iIj')
+        #get  binary properties
+        printout(" [ ] Getting basic properties from the binary")
+        self.data["info"] = self._cmd_j('iIj')
         self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
         del self.data["info"]["class"]
         
         self.data["info"]["filename"] = filename
+        self.filename = filename
+        printout("\r [*] Getting basic properties from the binary\n")
+        
     
     def __del__(self):
         if hasattr(self, "r2"):
@@ -63,7 +90,8 @@ class BinaryInfo(object):
     
     def addAdditionalInfo(self):
         #get sections
-        r2_sections = self.r2.cmdj('iSj')
+        printout(" [ ] Extracting info about sections")
+        r2_sections = self._cmd_j('iSj')
         
         self.data["sections"] = []
         for sec in r2_sections:
@@ -81,15 +109,19 @@ class BinaryInfo(object):
                 "md5": hex_dig
             }
             self.data["sections"].append(s)
+        printout("\r [*] Extracting info about sections\n")
         
         #calculate entropy
-        r2_entropy = self.r2.cmdj('p=ej') #TODO ??? must be rewritten!!! listen ML experts
+        printout(" [ ] Calculating entropy")
+        r2_entropy = self._cmd_j('p=ej') #TODO ??? must be rewritten!!! listen ML experts
         self.data["entropy"] = { "addr_value_list" : r2_entropy["entropy"] }
+        printout("\r [*] Calculating entropy\n")
         
         
     def addStrings(self):
         #get strings contained in the binary
-        r2_strings = self.r2.cmdj('izzj')["strings"]
+        printout(" [ ] Getting strings")
+        r2_strings = self._cmd_j('izzj')["strings"]
         
         self.data["strings"] = []
         for strg in r2_strings:
@@ -100,6 +132,7 @@ class BinaryInfo(object):
                 "encoding": strg["type"]
             }
             self.data["strings"].append(s)
+        printout("\r [*] Getting strings\n")
     
     
     def grabProcedures(self, engine, database=None):
@@ -107,6 +140,8 @@ class BinaryInfo(object):
         if engine == "radare2":
             if database:
                 self._fromR2Project(database)
+            elif hasattr(self, "r2plugin"):
+                self._grabR2Procedures()
             else:
                 self._generateR2()
             self._mode = _MODE_R2
@@ -123,8 +158,29 @@ class BinaryInfo(object):
             raise RuntimeError("BinaryInfo.grabProcedures: invalid engine %s" % str(engine))
         
     
-    def processSingle(self, procedure):
-        pass
+    def processSingle(self, proc_search):
+        if self._mode == _MODE_R2:
+            self.processProc = self._processR2Procedure
+        elif self._mode == _MODE_IDA:
+            self.processProc = self._processIDAProcedure
+        elif self._mode == _MODE_IDB:
+            self.processProc = self._processIDBProcedure
+        else:
+            raise RuntimeError("BinaryInfo.processSingle: mode not valid")
+        
+        printout(" [ ] Searching target procedure")
+        for proc in self.procs:
+            if proc["name"] == proc_search or hex(proc["offset"]) == proc_search or str(proc["offset"]) == proc_search:
+                printout("\r [*] Searching target procedure\n")
+                printout(" [ ] Processing target procedure")
+                data = {
+                    "program": self.md5,
+                    "procedure": self.processProc(proc)
+                }
+                printout("\r [*] Processing target procedure\n")
+                return data
+        printout("\r [*] Searching target procedure\n")
+        return None
     
     
     def processAll(self):
@@ -137,6 +193,7 @@ class BinaryInfo(object):
         else:
             raise RuntimeError("BinaryInfo.processAll: mode not valid")
         
+        print(" >> Processing all procedures")
         with status.Status(len(self.procs)) as bar:
             count = 0
             for proc in self.procs:
@@ -151,13 +208,17 @@ class BinaryInfo(object):
         return self.data
     
 
+
     def _generateR2(self):
         #analyze all
+        printout(" [ ] Analyzing all")
         self.r2.cmd("aaa")
+        printout(" [*] Analyzing all\n")
         self._grabR2Procedures()
     
     
     def _fromR2Project(self, filename):
+        printout(" [ ] Loading radare project")
         #set project directory var in radare
         projdir = os.path.dirname(filename)
         projname = os.path.basename(filename)
@@ -169,6 +230,8 @@ class BinaryInfo(object):
         out = self.r2.cmd("Po " + projname)
         if "Cannot open project info" in out:
             raise RuntimeError("BinaryInfo._fromR2Project: cannot load radare2 project " + name)
+        printout("\r [*] Loading radare project\n")
+        
         self._grabR2Procedures()
     
     
@@ -180,13 +243,16 @@ class BinaryInfo(object):
             raise ArchNotSupported("arch %s not supported" % self.data["info"]["arch"])
         self.data["info"]["arch"] = self.arch.name
         
-        libs_list = self.r2.cmdj('ilj')
+        printout(" [ ] Getting linked libraries")
+        libs_list = self._cmd_j('ilj')
         self.libs = []
         for lib in libs_list:
             self.libs.append({"name": lib})
+        printout("\r [*] Getting linked libraries\n")
         
+        printout(" [ ] Getting imported functions")
         #get imported functions
-        imports = self.r2.cmdj('iij')
+        imports = self._cmd_j('iij')
         
         self.data["imports"] = []
         imports_dict = {}
@@ -201,9 +267,11 @@ class BinaryInfo(object):
                     break
             
             self.data["imports"].append(i)
+        printout("\r [*] Getting imported functions\n")
         
+        printout(" [ ] Getting exported symbols")
         #get exported symbols
-        exports = self.r2.cmdj('iEj')
+        exports = self._cmd_j('iEj')
         
         self.data["exports"] = []
         for exp in exports:
@@ -213,23 +281,46 @@ class BinaryInfo(object):
                 "size": exp["size"]
             }
             self.data["exports"].append(e)
-
-        #get info about analyzed functions
-        funcs_dict = self.r2.cmdj('aflj')
-        sym_imp_l = len("sym.imp") 
+        printout("\r [*] Getting exported symbols\n")
+        
+        #get analyzed functions list
+        printout(" [ ] Getting procedures list")
+        funcs_dict = self._cmd_j('aflj')
+        printout("\r [*] Getting procedures list\n")
+        
+        if hasattr(self, "r2plugin"):
+            if funcs_dict == None:
+                print(" >> Procedure list is empty, performing an analysis with 'aaa'")
+                #analyze all
+                printout(" [ ] Analyzing all")
+                self.r2.cmd("aaa")
+                printout(" [*] Analyzing all\n")
+                printout(" [ ] Getting procedures list (again)")
+                funcs_dict = self._cmd_j('aflj')
+                printout("\r [*] Getting procedures list (again)\n")
+        
+        if funcs_dict == None:
+            raise RuntimeError("BinaryInfo._grabR2Procedures: cannot get list of procedures")
+        
+        sym_imp_l = len("sym.imp")
+        
+        printout(" [ ] Building procedures index (0/%d)" % len(funcs_dict))
         
         self.procs = []
         self.procs_names = {}
         self.procs_addrs = {}
         
+        i = 1
         for func in funcs_dict:
+            printout("\r [ ] Building procedures index (%d/%d)" % (i, len(funcs_dict)))
             try:
                 #skip library symbols
                 if len(func["name"]) >= sym_imp_l and func["name"][:sym_imp_l] == "sym.imp":
+                    i += 1
                     continue
                 
                 #get assembly from a function 
-                fcn_instructions = self.r2.cmdj('pdrj')
+                fcn_instructions = self._cmd_j('pdrj')
                 
                 #r2 cmd p6e : get bytes of a function in base64
                 fcn_bytes = base64.b64decode(self.r2.cmd('p6e ' + str(func["size"])).rstrip())
@@ -248,14 +339,14 @@ class BinaryInfo(object):
             except Exception as ee:
                 print "P", ee
                 printerr("error on function %s, skipped" % func["name"])
+            i += 1
+        printout("\r [*] Building procedures index\n")
     
     
     def _processR2Procedure(self, proc_info):
         insns_list = []
         asm = ""
-        
         flow_insns = []
-        targets = {}
         
         fcn_offset = proc_info["offset"]
         fcn_size = proc_info["size"]
@@ -322,6 +413,100 @@ class BinaryInfo(object):
         
         return proc_dict
 
+
+    def _fromIDAPro(self, filename):
+        printout(" [ ] Waiting for IDA to parse database (this may take several minutes)...")
+        
+        binname = os.path.splitext(filename)[0]
+        rand = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(5))
+        dumpname = '.'+binname+ '-'+ rand +'-dump.json'
+
+        file_ext = os.path.splitext(filename)[1]
+        idascript = os.path.join(os.path.dirname(os.path.abspath(__file__)), "idascript.py ")
+        
+        if config.usewine:
+            idascript.replace(os.path.sep, "\\")
+        
+        if file_ext == '.idb':
+            process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        elif file_ext == '.i64':
+            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        else:
+            raise RuntimeError('BinaryInfo._fromIDAPro: extension %s is not supported' % file_ext)
+        process.wait()
+        
+        #getting data from idascript via json
+        idadump = open(dumpname, 'r')
+        data = json.load(idadump)
+        idadump.close()
+
+        #clean up
+        os.remove(dumpname)
+        printout("\r [*] Waiting for IDA to parse database (this may take several minutes)...\n")
+                
+        printout(" [ ] Getting file properties and symbols")
+        #self.data['info'] = data['info']
+        for key in data['info']:
+            self.data['info'][key] = data['info'][key]
+        
+        try:
+            self.arch = matching.archFromIda(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
+        except:
+            raise ArchNotSupported("arch %s not supported" % self.data["info"]["arch"])
+        self.data["info"]["arch"] = self.arch.name
+        
+        self.data['libs'] = data['libs']
+
+        self.data['imports'] = data['imports']
+
+        self.data["exports"] = data['exports']
+        printout("\r [*] Getting file properties and symbols\n")
+        
+        self.procs = data['procedures']
+
+
+    def _processIDAProcedure(self, proc_info):
+        fcn_bytes = base64.b64decode(proc_info['raw_data'])
+        insns_list = []
+        for ins in proc_info['insns_list']:
+            insns_list.append(base64.b64decode(ins))
+        opcodes_list = proc_info['ops']
+        
+        #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
+        for i in range(0, len(opcodes_list), 2):
+            self.data["codebytes"][opcodes_list[i:i+2]] = self.data["codebytes"].get(opcodes_list[i:i+2], 0) +1
+        
+        call_insns = proc_info['call_insns']
+        jump_insns = proc_info['jump_insns']
+        flow_insns = []
+        for ci in call_insns:
+            call_instr = matching.CallInsn(*(ci))
+            flow_insns.append(call_instr)
+        for ji in jump_insns:
+            jump_instr = matching.JumpInsn(*(ji))
+            flow_insns.append(jump_instr) 
+
+        handler = matching.ProcedureHandler(fcn_bytes, insns_list, proc_info["offset"], flow_insns, self.arch)
+        handler.handleFlow()
+        handler.lift()
+
+        proc_dict = {
+            "offset": proc_info["offset"],
+            "proc_desc": {
+                "name": proc_info["name"],
+                "raw": proc_info['raw_data'],
+                "asm": proc_info['asm'],
+                "callconv": proc_info["callconv"],
+                "apicalls": handler.api,
+                "arch": self.arch.name
+            }
+        }
+        
+        proc_dict["proc_desc"]["flow_hash"] = handler.flowhash.encode("hex")
+        proc_dict["proc_desc"]["vex_hash"] = handler.vexhash.encode("hex")
+        proc_dict["proc_desc"]["full_hash"] = hashlib.md5(fcn_bytes).hexdigest()
+        
+        return proc_dict   
 
 
 
