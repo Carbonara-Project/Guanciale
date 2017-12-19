@@ -96,6 +96,11 @@ class BinaryInfo(object):
         self.filename = filename
         printout("\r" + _GREEN + "[x]" + _NC + " Getting basic properties from the binary\n")
         
+        #calculate entropy
+        printout(_RED + "[ ]" + _NC + " Calculating entropy")
+        r2_entropy = self._cmd_j('p=ej 1')
+        self.data["info"]["entropy"] = r2_entropy["entropy"][0]["value"]
+        printout("\r" + _GREEN + "[x]" + _NC + " Calculating entropy\n")
     
     def __del__(self):
         if hasattr(self, "r2"):
@@ -124,12 +129,6 @@ class BinaryInfo(object):
             }
             self.data["sections"].append(s)
         printout("\r" + _GREEN + "[x]" + _NC + " Extracting info about sections\n")
-        
-        #calculate entropy
-        printout(_RED + "[ ]" + _NC + " Calculating entropy")
-        r2_entropy = self._cmd_j('p=ej') #TODO ??? must be rewritten!!! listen ML experts
-        self.data["entropy"] = { "addr_value_list" : r2_entropy["entropy"] }
-        printout("\r" + _GREEN + "[x]" + _NC + " Calculating entropy\n")
         
         
     def addStrings(self):
