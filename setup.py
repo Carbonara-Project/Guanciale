@@ -26,6 +26,7 @@ setup(
             'carbonara-archinfo',
             'carbonara-pyvex',
             'appdirs',
-            'datasketch'
+            'datasketch',
+            'r2pipe'
     ]
 )
