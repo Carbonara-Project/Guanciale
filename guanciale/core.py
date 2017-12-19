@@ -339,6 +339,10 @@ class BinaryInfo(object):
                 
                 #get assembly from a function 
                 fcn_instructions = self._cmd_j('pdrj')
+                if fcn_instructions == None:
+                    o = self.r2.cmd('pdrj')
+                    if o.endswith("},]"): #fix for strange radare bug
+                        fcn_instructions = json.loads(o[:-2] + "]")
                 
                 #r2 cmd p6e : get bytes of a function in base64
                 fcn_bytes = base64.b64decode(self.r2.cmd('p6e ' + str(func["size"])).rstrip())
