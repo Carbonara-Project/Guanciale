@@ -21,6 +21,9 @@ idacmd = None
 ida64cmd = None
 usewine = False
 
+os.environ["PATH"] =os.environ["PATH"] +  os.pathsep + os.path.join(dirs.user_data_dir, "guanciale_radare2")
+
+
 def _downloadRadare():
     url = "https://carbonara-project.github.io/Carbonara-Downloads/" + platform.system() + "/" + platform.machine() + "/files.txt"
     try:
@@ -29,7 +32,7 @@ def _downloadRadare():
         return None
     files = r.text.split("\n")
     
-    r2folder = os.path.join(dirs.user_data_dir, "radare2")
+    r2folder = os.path.join(dirs.user_data_dir, "guanciale_radare2")
     mkpath(r2folder)
     
     r2 = None
