@@ -22,12 +22,20 @@ from errors import *
 
 _DEBUG = True if "DEBUG" in os.environ else False
 
-def printerr(s):
-    sys.stderr.write(str(s) + "\n")
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+LCYAN='\033[0;96m'
+NC='\033[0m'
+LMAG_BG='\033[105m'
+RED_BG='\033[41m'
+YELL_BG='\033[43m'
 
-_RED='\033[0;31m'
-_GREEN='\033[0;32m'
-_NC='\033[0m'
+def printerr(s):
+    sys.stderr.write(RED_BG + "  error  " + NC + " " + str(s) + "\n")
+
+def printwarn(s):
+    sys.stderr.write(YELL_BG + " warning " + NC + " " + str(s) + "\n")
+
 
 def printout(s):
     sys.stdout.write(s)
@@ -63,7 +71,7 @@ class BinaryInfo(object):
             self.r2 = r2pipe.open(filename)
         
         #open the binary file and compute md5 and sha256 hash
-        printout(_RED + "[ ]" + _NC + "  Computing hashes of the entire binary")
+        printout(RED + "[ ]" + NC + "  Computing hashes of the entire binary")
         binfile = open(filename, "rb")
         self.content = binfile.read()
         
@@ -73,7 +81,7 @@ class BinaryInfo(object):
         sha256_dig = hash_object.hexdigest()
         
         binfile.close()
-        printout("\r" + _GREEN + "[x]" + _NC + " Computing hashes of the entire binary \n")
+        printout("\r" + GREEN + "[x]" + NC + " Computing hashes of the entire binary \n")
         
         self.md5 = md5_dig
         
@@ -87,20 +95,20 @@ class BinaryInfo(object):
         }
         
         #get  binary properties
-        printout(_RED + "[ ]" + _NC + " Getting basic properties from the binary")
+        printout(RED + "[ ]" + NC + " Getting basic properties from the binary")
         self.data["info"] = self._cmd_j('iIj')
         self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
         del self.data["info"]["class"]
         
         self.data["info"]["filename"] = filename
         self.filename = filename
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting basic properties from the binary\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting basic properties from the binary\n")
         
         #calculate entropy
-        printout(_RED + "[ ]" + _NC + " Calculating entropy")
+        printout(RED + "[ ]" + NC + " Calculating entropy")
         r2_entropy = self._cmd_j('p=ej 1')
         self.data["info"]["entropy"] = r2_entropy["entropy"][0]["value"]
-        printout("\r" + _GREEN + "[x]" + _NC + " Calculating entropy\n")
+        printout("\r" + GREEN + "[x]" + NC + " Calculating entropy\n")
     
     def __del__(self):
         if hasattr(self, "r2"):
@@ -109,7 +117,7 @@ class BinaryInfo(object):
     
     def addAdditionalInfo(self):
         #get sections
-        printout(_RED + "[ ]" + _NC + " Extracting info about sections")
+        printout(RED + "[ ]" + NC + " Extracting info about sections")
         r2_sections = self._cmd_j('iSj')
         
         self.data["sections"] = []
@@ -128,12 +136,12 @@ class BinaryInfo(object):
                 "md5": hex_dig
             }
             self.data["sections"].append(s)
-        printout("\r" + _GREEN + "[x]" + _NC + " Extracting info about sections\n")
+        printout("\r" + GREEN + "[x]" + NC + " Extracting info about sections\n")
         
         
     def addStrings(self):
         #get strings contained in the binary
-        printout(_RED + "[ ]" + _NC + " Getting strings")
+        printout(RED + "[ ]" + NC + " Getting strings")
         r2_strings = self._cmd_j('izzj')["strings"]
         
         self.data["strings"] = []
@@ -145,7 +153,7 @@ class BinaryInfo(object):
                 "encoding": strg["type"]
             }
             self.data["strings"].append(s)
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting strings\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting strings\n")
     
     
     def grabProcedures(self, engine, database=None):
@@ -181,18 +189,18 @@ class BinaryInfo(object):
         else:
             raise RuntimeError("BinaryInfo.processSingle: mode not valid")
         
-        printout(_RED + "[ ]" + _NC + " Searching target procedure")
+        printout(RED + "[ ]" + NC + " Searching target procedure")
         for proc in self.procs:
             if proc["name"] == proc_search or hex(proc["offset"]) == proc_search or str(proc["offset"]) == proc_search:
-                printout("\r" + _GREEN + "[x]" + _NC + " Searching target procedure\n")
-                printout(_RED + "[ ]" + _NC + " Processing target procedure")
+                printout("\r" + GREEN + "[x]" + NC + " Searching target procedure\n")
+                printout(RED + "[ ]" + NC + " Processing target procedure")
                 data = {
                     "program": self.md5,
                     "procedure": self.processProc(proc)
                 }
-                printout("\r" + _GREEN + "[x]" + _NC + " Processing target procedure\n")
+                printout("\r" + GREEN + "[x]" + NC + " Processing target procedure\n")
                 return data
-        printout("\r" + _GREEN + "[x]" + _NC + " Searching target procedure\n")
+        printout("\r" + GREEN + "[x]" + NC + " Searching target procedure\n")
         return None
     
     
@@ -216,7 +224,7 @@ class BinaryInfo(object):
                     if _DEBUG:
                         import traceback
                         traceback.print_exc()
-                    printerr(" >> " + _RED + "Error" + _NC +" on function %s, skipped" % proc["name"])
+                    printerr(" >> " + RED + "Error" + NC +" on function %s, skipped" % proc["name"])
                 count += 1
                 bar.update(count)
         
@@ -226,14 +234,14 @@ class BinaryInfo(object):
 
     def _generateR2(self):
         #analyze all
-        printout(_RED + "[ ]" + _NC + " Analyzing all")
+        printout(RED + "[ ]" + NC + " Analyzing all")
         self.r2.cmd("aaa")
-        printout(_GREEN + "[x]" + _NC + " Analyzing all\n")
+        printout(GREEN + "[x]" + NC + " Analyzing all\n")
         self._grabR2Procedures()
     
     
     def _fromR2Project(self, filename):
-        printout(_RED + "[ ]" + _NC + " Loading radare project")
+        printout(RED + "[ ]" + NC + " Loading radare project")
         #set project directory var in radare
         projdir = os.path.dirname(filename)
         projname = os.path.basename(filename)
@@ -245,7 +253,7 @@ class BinaryInfo(object):
         out = self.r2.cmd("Po " + projname)
         if "Cannot open project info" in out:
             raise RuntimeError("BinaryInfo._fromR2Project: cannot load radare2 project " + name)
-        printout("\r" + _GREEN + "[x]" + _NC + " Loading radare project\n")
+        printout("\r" + GREEN + "[x]" + NC + " Loading radare project\n")
         
         self._grabR2Procedures()
     
@@ -258,14 +266,14 @@ class BinaryInfo(object):
             raise ArchNotSupported("arch %s (%d bits) not supported" % (self.data["info"]["arch"], self.data["info"]["bits"]))
         self.data["info"]["arch"] = self.arch.name
         
-        printout(_RED + "[ ]" + _NC + " Getting linked libraries")
+        printout(RED + "[ ]" + NC + " Getting linked libraries")
         libs_list = self._cmd_j('ilj')
         self.libs = []
         for lib in libs_list:
             self.libs.append({"name": lib})
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting linked libraries\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting linked libraries\n")
         
-        printout(_RED + "[ ]" + _NC + " Getting imported functions")
+        printout(RED + "[ ]" + NC + " Getting imported functions")
         #get imported functions
         imports = self._cmd_j('iij')
         
@@ -282,9 +290,9 @@ class BinaryInfo(object):
                     break
             
             self.data["imports"].append(i)
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting imported functions\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting imported functions\n")
         
-        printout(_RED + "[ ]" + _NC + " Getting exported symbols")
+        printout(RED + "[ ]" + NC + " Getting exported symbols")
         #get exported symbols
         exports = self._cmd_j('iEj')
         
@@ -296,30 +304,30 @@ class BinaryInfo(object):
                 "size": exp["size"]
             }
             self.data["exports"].append(e)
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting exported symbols\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting exported symbols\n")
         
         #get analyzed funtions list
-        printout(_RED + "[ ]" + _NC + " Getting procedures list")
+        printout(RED + "[ ]" + NC + " Getting procedures list")
         funcs_dict = self._cmd_j('aflj')
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting procedures list\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting procedures list\n")
         
         if hasattr(self, "r2plugin"):
             if funcs_dict == None:
                 print(" >> Procedure list is empty, performing an analysis with 'aaa'")
                 #analyze all
-                printout(_RED + "[ ]" + _NC + " Analyzing all")
+                printout(RED + "[ ]" + NC + " Analyzing all")
                 self.r2.cmd("aaa")
-                printout(_GREEN + "[x]" + _NC + " Analyzing all\n")
-                printout(_RED + "[ ]" + _NC + " Getting procedures list (again)")
+                printout(GREEN + "[x]" + NC + " Analyzing all\n")
+                printout(RED + "[ ]" + NC + " Getting procedures list (again)")
                 funcs_dict = self._cmd_j('aflj')
-                printout("\r" + _GREEN + "[x]" + _NC + " Getting procedures list (again)\n")
+                printout("\r" + GREEN + "[x]" + NC + " Getting procedures list (again)\n")
         
         if funcs_dict == None:
             raise RuntimeError("BinaryInfo._grabR2Procedures: cannot get list of procedures")
         
         sym_imp_l = len("sym.imp")
         
-        printout(_RED + "[ ]" + _NC + " Building procedures index (0/%d)" % len(funcs_dict))
+        printout(RED + "[ ]" + NC + " Building procedures index (0/%d)" % len(funcs_dict))
         
         self.procs = []
         #self.procs_names = {}
@@ -327,7 +335,7 @@ class BinaryInfo(object):
         
         i = 1
         for func in funcs_dict:
-            printout("\r" + _RED + "[ ]" + _NC + " Building procedures index (%d/%d)" % (i, len(funcs_dict)))
+            printout("\r" + RED + "[ ]" + NC + " Building procedures index (%d/%d)" % (i, len(funcs_dict)))
             try:
                 #skip library symbols
                 if len(func["name"]) >= sym_imp_l and func["name"][:sym_imp_l] == "sym.imp":
@@ -361,9 +369,9 @@ class BinaryInfo(object):
                 if _DEBUG:
                     import traceback
                     traceback.print_exc()
-                printerr(" >> " + _RED + "Error" + _NC +" on function %s, skipped" % func["name"])
+                printerr(" >> " + RED + "Error" + NC +" on function %s, skipped" % func["name"])
             i += 1
-        printout("\r" + _GREEN + "[x]" + _NC + " Building procedures index\n")
+        printout("\r" + GREEN + "[x]" + NC + " Building procedures index\n")
     
     
     def _processR2Procedure(self, proc_info):
@@ -397,10 +405,12 @@ class BinaryInfo(object):
                 call_instr = None
                 if target_name[:sym_imp_l] == "sym.imp":
                     call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True)
-                elif target_name[:len("sub.")] == "sub.":
-                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True)
+                #elif target_name[:len("sub.")] == "sub.":
+                #    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True)
                 elif target_name[:len("sym.")] == "sym." and target_name[len("sym."):] in self.imports_dict:
                     call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sym."):], True)
+                elif target_name in self.imports_dict:
+                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name, True)
                 else:
                     call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
                 flow_insns.append(call_instr)
@@ -438,7 +448,7 @@ class BinaryInfo(object):
 
 
     def _fromIDAPro(self, filename):
-        printout(_RED + "[ ]" + _NC + " Waiting for IDA to parse database (this may take several minutes)...")
+        printout(RED + "[ ]" + NC + " Waiting for IDA to parse database (this may take several minutes)...")
         
         binname = os.path.splitext(filename)[0]
         rand = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(5))
@@ -468,9 +478,9 @@ class BinaryInfo(object):
             
         #clean up
         os.remove(dumpname)
-        printout("\r" + _GREEN + "[x]" + _NC + " Waiting for IDA to parse database (this may take several minutes)...\n")
+        printout("\r" + GREEN + "[x]" + NC + " Waiting for IDA to parse database (this may take several minutes)...\n")
                 
-        printout(_RED + "[ ]" + _NC + " Getting file properties and symbols")
+        printout(RED + "[ ]" + NC + " Getting file properties and symbols")
         #self.data['info'] = data['info']
         for key in data['info']:
             self.data['info'][key] = data['info'][key]
@@ -486,7 +496,7 @@ class BinaryInfo(object):
         self.data['imports'] = data['imports']
 
         self.data["exports"] = data['exports']
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting file properties and symbols\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting file properties and symbols\n")
         
         self.procs = data['procedures']
 
@@ -502,15 +512,14 @@ class BinaryInfo(object):
         for i in range(0, len(opcodes_list), 2):
             self.data["codebytes"][opcodes_list[i:i+2]] = self.data["codebytes"].get(opcodes_list[i:i+2], 0) +1
         
-        call_insns = proc_info['call_insns']
-        jump_insns = proc_info['jump_insns']
+        flow_insns_tuples = proc_info['flow_insns']
         flow_insns = []
-        for ci in call_insns:
-            call_instr = matching.CallInsn(*(ci))
-            flow_insns.append(call_instr)
-        for ji in jump_insns:
-            jump_instr = matching.JumpInsn(*(ji))
-            flow_insns.append(jump_instr) 
+        for ins in flow_insns_tuples:
+            if len(ins) == 5:
+                instr = matching.CallInsn(*(ins))
+            elif len(ins) == 4:
+                instr = matching.JumpInsn(*(ins))
+            flow_insns.append(instr) 
 
         handler = matching.ProcedureHandler(fcn_bytes, insns_list, proc_info["offset"], flow_insns, self.arch)
         handler.handleFlow()
@@ -542,14 +551,14 @@ class BinaryInfo(object):
         
         logging.basicConfig()
         
-        printout(_RED + "[ ]" + _NC + " Getting linked libraries")
+        printout(RED + "[ ]" + NC + " Getting linked libraries")
         libs_list = self._cmd_j('ilj')
         self.libs = []
         for lib in libs_list:
             self.libs.append({"name": lib})
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting linked libraries\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting linked libraries\n")
         
-        printout(_RED + "[ ]" + _NC + " Getting imported functions")
+        printout(RED + "[ ]" + NC + " Getting imported functions")
         #get imported functions
         imports = self._cmd_j('iij')
         
@@ -566,9 +575,9 @@ class BinaryInfo(object):
                     break
             
             self.data["imports"].append(i)
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting imported functions\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting imported functions\n")
         
-        printout(_RED + "[ ]" + _NC + " Getting exported symbols")
+        printout(RED + "[ ]" + NC + " Getting exported symbols")
         #get exported symbols
         exports = self._cmd_j('iEj')
         
@@ -580,12 +589,12 @@ class BinaryInfo(object):
                 "size": exp["size"]
             }
             self.data["exports"].append(e)
-        printout("\r" + _GREEN + "[x]" + _NC + " Getting exported symbols\n")
+        printout("\r" + GREEN + "[x]" + NC + " Getting exported symbols\n")
         
         #analyze all
-        printout(_RED + "[ ]" + _NC + " Analyzing all")
+        printout(RED + "[ ]" + NC + " Analyzing all")
         self.r2.cmd("aaa")
-        printout(_GREEN + "[x]" + _NC + " Analyzing all\n")
+        printout(GREEN + "[x]" + NC + " Analyzing all\n")
         
         def strz(b, o):
             return b[o:b.find(b'\x00', o)].decode('utf-8', 'ignore')
@@ -617,11 +626,11 @@ class BinaryInfo(object):
             
             sym_imp_l = len("sym.imp")
             
-            printout( _RED + "[ ]" + _NC + " Getting procedures (0/%d)" % len(ida_funcs))
+            printout( RED + "[ ]" + NC + " Getting procedures (0/%d)" % len(ida_funcs))
             i = 1
             #iterate for each function
             for func in ida_funcs:
-                printout("\r" + _RED + "[ ]" + _NC + " Getting procedures (%d/%d)" % (i, len(ida_funcs)))
+                printout("\r" + RED + "[ ]" + NC + " Getting procedures (%d/%d)" % (i, len(ida_funcs)))
                 try:
                     fcn_name = api.idc.GetFunctionName(func)
                     
@@ -715,7 +724,7 @@ class BinaryInfo(object):
                     if _DEBUG:
                         import traceback
                         traceback.print_exc()
-                    printerr(" >> " + _RED + "Error" + _NC +" on function %s, skipped" % fcn_name)
+                    printerr(" >> " + RED + "Error" + NC +" on function %s, skipped" % fcn_name)
                 i += 1
-            printout("\r" + _GREEN + "[x]" + _NC + " Getting procedures\n")
+            printout("\r" + GREEN + "[x]" + NC + " Getting procedures\n")
 

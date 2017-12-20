@@ -335,8 +335,8 @@ class ProcedureHandler(object):
         except pyvex.errors.PyVEXError as err:
             #print err
             self.liftByInsns()       
-
-
+        
+    
     def handleFlow(self):
         
         #TODO replace sorting loops with sorted function
@@ -379,15 +379,15 @@ class ProcedureHandler(object):
         for instr in self.bb_insns:
             if isinstance(instr, CallInsn):
                 if instr.is_api:
-                    #flow.append("API:" + instr.fcn_name)
+                    #flow.append(hex(instr.offset)+"  API:" + instr.fcn_name)
                     flowhash.update("API:" + instr.fcn_name)
                 else:
-                    #flow.append("OUT:" + calleds_dict[instr.addr])
+                    #flow.append(hex(instr.offset)+"  OUT:" + calleds_dict[instr.addr])
                     flowhash.update("OUT:" + calleds_dict[instr.addr])
                     self.targets[instr.addr] = "OUT:" + calleds_dict[instr.addr]
             else:
                 if instr.jumpout:
-                    #flow.append("OUT:" + calleds_dict[instr.addr])
+                    #flow.append(hex(instr.offset)+"  OUT:" + calleds_dict[instr.addr])
                     flowhash.update("OUT:" + calleds_dict[instr.addr])
                     self.targets[instr.addr] = "OUT:" + calleds_dict[instr.addr]
                 else:
@@ -402,9 +402,85 @@ class ProcedureHandler(object):
         lean_flowhash.serialize(flowhash_buf)
         
         self.flowhash = str(flowhash_buf)
-        
         '''
         for f in flow:
             print f
-        print
+        for pp in self.bb_insns:
+            print pp
         '''
+
+    """
+    def handleFlow(self):
+        
+        #TODO replace sorting loops with sorted function
+        api = []
+        internals = []
+        jumps = []
+        api_str = ""
+
+        self.targets = {}
+        self.api = []
+        #self.flow = []
+        
+        for instr in self.bb_insns:
+            if isinstance(instr, CallInsn):
+                if instr.is_api:
+                    self.targets[instr.addr] = "API:" + instr.fcn_name
+                    
+                    self.api.append({"name": instr.fcn_name})
+                else:
+                    internals.append(instr.addr)
+                    
+            else:
+                if instr.addr not in self.targets:
+                    if instr.jumpout:
+                        internals.append(instr.addr)
+                    else:
+                        jumps.append(instr.addr)
+        
+        jumps.sort()
+        jumps_dict = {}
+        for i in range(len(jumps)):
+            jumps_dict[jumps[i]] = i
+            
+            self.targets[jumps[i]] = "JMP:" + str(i)
+        
+        internals_sorted = internals[:]
+        internals_sorted.sort()
+        calleds_dict = {}
+        for i in range(len(internals_sorted)):
+            calleds_dict[internals_sorted[i]] = str(i)
+            
+            self.targets[internals_sorted[i]] = "OUT:" + hex(i)
+        
+        flowhash = datasketch.MinHash(num_perm=32)
+        
+        for instr in self.bb_insns:
+            if isinstance(instr, CallInsn):
+                if instr.is_api:
+                    #self.flow.append("API:" + instr.fcn_name)
+                    flowhash.update("API:" + instr.fcn_name)
+                else:
+                    #self.flow.append("OUT:" + calleds_dict[instr.addr])
+                    flowhash.update("OUT:" + calleds_dict[instr.addr])
+            else:
+                if instr.addr not in self.targets:
+                    if instr.jumpout:
+                        #self.flow.append("OUT:" + calleds_dict[instr.addr])
+
+                        flowhash.update("OUT:" + calleds_dict[instr.addr])
+                    else:
+                        #self.flow.append("JMP:" + jumps_dict[instr.addr])
+                        flowhash.update("JMP:" + jumps_dict[instr.addr])
+        
+        lean_flowhash = datasketch.LeanMinHash(flowhash)
+        flowhash_buf = bytearray(lean_flowhash.bytesize())
+        lean_flowhash.serialize(flowhash_buf)
+        
+        self.flowhash = str(flowhash_buf)
+        
+        '''
+        for f in self.flow:
+            print f
+        '''
+    """

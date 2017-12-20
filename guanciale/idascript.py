@@ -112,7 +112,7 @@ def getCallConv(func_info):
     else:
        return ''
 
-def theFlow(call_check, jump_check, jump_insns, call_insns):
+def theFlow(call_check, jump_check, flow_insns):
     if call_check:
         op = idc.GetOpnd(cur_addr, 0)
         op_type = idc.GetOpType(cur_addr, 0)
@@ -135,7 +135,7 @@ def theFlow(call_check, jump_check, jump_insns, call_insns):
             if not isApi:
                 target = None
                 target = idc.LocByName(op)
-            call_insns.append((cur_addr, size, target, op, isApi))
+            flow_insns.append((cur_addr, size, target, op, isApi))
     elif jump_check:
         op = idc.GetOpnd(cur_addr, 0)
         op_type = idc.GetOpType(cur_addr, 0)
@@ -144,7 +144,7 @@ def theFlow(call_check, jump_check, jump_insns, call_insns):
             jumpout = None
             target = idc.LocByName(op)
             jumpout = target  < start or target > end
-            jump_insns.append((cur_addr, size, target, jumpout))
+            flow_insns.append((cur_addr, size, target, jumpout))
 
 metapcFlow = theFlow
 avrFlow = theFlow
@@ -233,8 +233,7 @@ for func in idautils.Functions():
     asm = ''
     ops = ''
     insns_list = []
-    call_insns = []
-    jump_insns = []
+    flow_insns = []
 
     while cur_addr <= end:
         next_instr = idc.NextHead(cur_addr, end)
@@ -267,7 +266,7 @@ for func in idautils.Functions():
         arch = data['info']['arch']
         mnem = idc.GetMnem(cur_addr) if arch =='metapc' else idc.GetDisasm(cur_addr).split()[0]
         call_check, jump_check, addFlow = checkFlow(arch, mnem)
-        addFlow(call_check, jump_check, jump_insns, call_insns)
+        addFlow(call_check, jump_check, flow_insns)
 
         cur_addr = next_instr
 
@@ -280,8 +279,7 @@ for func in idautils.Functions():
         'callconv': callconv,
         'raw_data': base64.b64encode(raw_data),
         'asm': asm,
-        'call_insns': call_insns,
-        'jump_insns': jump_insns,
+        'flow_insns': flow_insns,
         'insns_list': insns_list,
         'ops': ops
     }
