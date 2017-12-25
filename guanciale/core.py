@@ -461,9 +461,9 @@ class BinaryInfo(object):
             idascript.replace(os.path.sep, "\\")
         
         if file_ext == '.idb':
-            process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"')#, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         elif file_ext == '.i64':
-            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"')#, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         else:
             raise RuntimeError('BinaryInfo._fromIDAPro: extension %s is not supported' % file_ext)
         process.wait()

@@ -133,8 +133,9 @@ def theFlow(call_check, jump_check, flow_insns):
                         target = imp['addr']
                         break
             if not isApi:
-                target = None
-                target = idc.LocByName(op)
+                target = idc.get_name_ea_simple(op)
+                if target == BADADDR:
+                    target = idc.get_name_ea_simple(op[1:])
             flow_insns.append((cur_addr, size, target, op, isApi))
     elif jump_check:
         op = idc.GetOpnd(cur_addr, 0)
@@ -222,6 +223,7 @@ for func in idautils.Functions():
 
     #get procedure name
     name = idc.GetFunctionName(func)
+    
     #get procedure callconv
     func_info = idc.GetType(func)
     callconv = getCallConv(func_info)
