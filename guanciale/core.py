@@ -25,6 +25,7 @@ _DEBUG = True if "DEBUG" in os.environ else False
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 LCYAN='\033[0;96m'
+LMAG='\033[95m'
 NC='\033[0m'
 LMAG_BG='\033[105m'
 RED_BG='\033[41m'
