@@ -269,9 +269,9 @@ class BinaryInfo(object):
         
         printout(RED + "[ ]" + NC + " Getting linked libraries")
         libs_list = self._cmd_j('ilj')
-        self.libs = []
+        self.data['libs'] = []
         for lib in libs_list:
-            self.libs.append({"name": lib})
+            self.data['libs'].append({"name": lib})
         printout("\r" + GREEN + "[x]" + NC + " Getting linked libraries\n")
         
         printout(RED + "[ ]" + NC + " Getting imported functions")
@@ -554,9 +554,9 @@ class BinaryInfo(object):
         
         printout(RED + "[ ]" + NC + " Getting linked libraries")
         libs_list = self._cmd_j('ilj')
-        self.libs = []
+        self.data['libs'] = []
         for lib in libs_list:
-            self.libs.append({"name": lib})
+            self.data['libs'].append({"name": lib})
         printout("\r" + GREEN + "[x]" + NC + " Getting linked libraries\n")
         
         printout(RED + "[ ]" + NC + " Getting imported functions")
