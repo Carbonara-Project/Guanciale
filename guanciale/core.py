@@ -85,6 +85,9 @@ class BinaryInfo(object):
         binfile.close()
         printout("\r" + GREEN + "[x]" + NC + " Computing hashes of the entire binary \n")
         
+        print(" >> md5: " + md5_dig)
+        print(" >> sha256: " + sha256_dig)
+        
         self.md5 = md5_dig
         
         self.data = {
@@ -96,7 +99,7 @@ class BinaryInfo(object):
             "codebytes": {}
         }
         
-        #get  binary properties
+        #get binary properties
         printout(RED + "[ ]" + NC + " Getting basic properties from the binary")
         self.data["info"] = self._cmd_j('iIj')
         self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
