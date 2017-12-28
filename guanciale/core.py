@@ -466,9 +466,9 @@ class BinaryInfo(object):
             idascript.replace(os.path.sep, "\\")
         
         if file_ext == '.idb':
-            process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"')#, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True)#, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         elif file_ext == '.i64':
-            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"')#, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True)#, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         else:
             raise RuntimeError('BinaryInfo._fromIDAPro: extension %s is not supported' % file_ext)
         process.wait()
@@ -529,7 +529,10 @@ class BinaryInfo(object):
         handler = matching.ProcedureHandler(fcn_bytes, insns_list, proc_info["offset"], flow_insns, self.arch)
         handler.handleFlow()
         handler.lift()
-
+        
+        if proc_info["callconv"] == "":
+            proc_info["callconv"] = None
+        
         proc_dict = {
             "offset": proc_info["offset"],
             "proc_desc": {
@@ -715,7 +718,7 @@ class BinaryInfo(object):
                     #get callconv => NOT WORKING
                     #flags = api.idc.GetFunctionAttr(func, api.idc.FUNCATTR_FLAGS)
                     #callconv = api.idc.get_optype_flags1(flags)
-                    fcn_call_conv = "(null)"
+                    fcn_call_conv = None
                     
                     self.procs.append({
                         "offset": start,
