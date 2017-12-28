@@ -263,7 +263,7 @@ for func in idautils.Functions():
         ops += opc
 
         #get instruction bytes
-        insns_list.append(base64.b64encode(idc.GetManyBytes(cur_addr, size)))
+        insns_list.append((cur_addr, base64.b64encode(idc.GetManyBytes(cur_addr, size))))
         
         #add to flow_insns if call or jump
         arch = data['info']['arch']

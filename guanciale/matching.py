@@ -120,8 +120,7 @@ class ProcedureHandler(object):
         pc_offset = self.arch.registers["pc"][0]
         regs = {}
         irsbs = []
-        consts = {}
-        
+
         for bidx in range(len(bb) -1):
             irsb = pyvex.IRSB(self.code[bb[bidx]:bb[bidx+1]], self.offset + bb[bidx], self.arch, opt_level=0)
             irsbs.append(irsb)
@@ -153,10 +152,6 @@ class ProcedureHandler(object):
                         for j in range(len(stmts[i].constants)):
                             if stmts[i].constants[j].value in self.targets:
                                 stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
-                            else:
-                                c = stmts[i].constants[j]
-                                consts[c.value] = consts.get(c.value, len(consts))
-                                c.value = consts[c.value]
                         
                         # registers abstraction
                         regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
@@ -174,10 +169,6 @@ class ProcedureHandler(object):
                     for j in range(len(stmts[i].constants)):
                         if stmts[i].constants[j].value in self.targets:
                             stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
-                        else:
-                            c = stmts[i].constants[j]
-                            consts[c.value] = consts.get(c.value, len(consts))
-                            c.value = consts[c.value]
                 for expr in stmts[i].expressions:
                     if isinstance(expr, pyvex.expr.Get):
                         # registers abstraction
@@ -216,6 +207,7 @@ class ProcedureHandler(object):
         lean_vexhash.serialize(vexhash_buf)
         
         self.vexhash = str(vexhash_buf)
+        
 
     def liftByInsns(self):
         consts = {}
@@ -225,9 +217,10 @@ class ProcedureHandler(object):
         pc_offset = self.arch.registers["pc"][0]
         regs = {}
         irsbs = []
-        consts = {}
-        
+
         for instr in self.insns_list:
+            off = instr[0]
+            instr = instr[1]
             #manage instruction not recognized by libVEX
             if self.arch.name == "X86" or self.arch.name == "AMD64":
                 if instr == "\xf4": #hlt x86 instruction
@@ -239,7 +232,7 @@ class ProcedureHandler(object):
                         continue
                     instr = instr[1:]
             try:
-                irsb = pyvex.IRSB(instr, 0, self.arch, opt_level=0)
+                irsb = pyvex.IRSB(instr, off, self.arch, opt_level=0)
             except pyvex.errors.PyVEXError as err:
                 print("Error with instruction " + instr.encode("hex"))
                 raise err
@@ -272,10 +265,7 @@ class ProcedureHandler(object):
                         for j in range(len(stmts[i].constants)):
                             if stmts[i].constants[j].value in self.targets:
                                 stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
-                            else:
-                                c = stmts[i].constants[j]
-                                consts[c.value] = consts.get(c.value, len(consts))
-                                c.value = consts[c.value]
+                        
                         # registers abstraction
                         regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
                         stmts[i].offset = regs[stmts[i].offset]
@@ -291,11 +281,8 @@ class ProcedureHandler(object):
                     # constants replace
                     for j in range(len(stmts[i].constants)):
                         if stmts[i].constants[j].value in self.targets:
+
                             stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
-                        else:
-                            c = stmts[i].constants[j]
-                            consts[c.value] = consts.get(c.value, len(consts))
-                            c.value = consts[c.value]
                 for expr in stmts[i].expressions:
                     if isinstance(expr, pyvex.expr.Get):
                         # registers abstraction

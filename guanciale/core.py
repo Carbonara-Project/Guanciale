@@ -429,7 +429,7 @@ class BinaryInfo(object):
                 jump_instr = matching.JumpInsn(instr["offset"], instr["size"], target, jumpout)
                 flow_insns.append(jump_instr)
             
-            insns_list.append(instr["bytes"].decode("hex"))
+            insns_list.append((instr["offset"], instr["bytes"].decode("hex")))
         
         handler = matching.ProcedureHandler(proc_info["bytes"], insns_list, proc_info["offset"], flow_insns, self.arch)
         handler.handleFlow()
@@ -518,7 +518,7 @@ class BinaryInfo(object):
         fcn_bytes = base64.b64decode(proc_info['raw_data'])
         insns_list = []
         for ins in proc_info['insns_list']:
-            insns_list.append(base64.b64decode(ins))
+            insns_list.append((ins[0], base64.b64decode(ins[1])))
         opcodes_list = proc_info['ops']
         
         #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
