@@ -434,7 +434,7 @@ class BinaryInfo(object):
         handler = matching.ProcedureHandler(proc_info["bytes"], insns_list, proc_info["offset"], flow_insns, self.arch)
         handler.handleFlow()
         handler.lift()
-
+        
         proc_dict = {
             "offset": fcn_offset,
             "proc_desc": {
