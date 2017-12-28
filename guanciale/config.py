@@ -110,6 +110,7 @@ def populateConfig_radare():
 def populateConfig_idacmd():
     global idacmd
     global ida64cmd
+    global usewine
     if os.name == 'nt': #Windows
         #get an array of directories in the ProgramFiles(x86) folder which the name starts with 'IDA'
         ida_dirs = glob.glob(os.environ["ProgramFiles(x86)"] + "\\IDA*\\")

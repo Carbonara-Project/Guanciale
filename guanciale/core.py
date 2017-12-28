@@ -108,19 +108,21 @@ class BinaryInfo(object):
         self.data["info"]["filename"] = filename
         self.filename = filename
         printout("\r" + GREEN + "[x]" + NC + " Getting basic properties from the binary\n")
-        
+    
+    def __del__(self):
+        try:
+            if hasattr(self, "r2"):
+                self.r2.quit()
+        except: pass
+    
+    
+    def addAdditionalInfo(self):
         #calculate entropy
         printout(RED + "[ ]" + NC + " Calculating entropy")
         r2_entropy = self._cmd_j('p=ej 1')
         self.data["info"]["entropy"] = r2_entropy["entropy"][0]["value"]
         printout("\r" + GREEN + "[x]" + NC + " Calculating entropy\n")
-    
-    def __del__(self):
-        if hasattr(self, "r2"):
-            self.r2.quit()
-    
-    
-    def addAdditionalInfo(self):
+        
         #get sections
         printout(RED + "[ ]" + NC + " Extracting info about sections")
         r2_sections = self._cmd_j('iSj')
@@ -466,9 +468,15 @@ class BinaryInfo(object):
             idascript.replace(os.path.sep, "\\")
         
         if file_ext == '.idb':
-            process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True)#, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if config.usewine:
+                process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            else:
+                process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True)
         elif file_ext == '.i64':
-            process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True)#, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if config.usewine:
+                process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            else:
+                process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True)
         else:
             raise RuntimeError('BinaryInfo._fromIDAPro: extension %s is not supported' % file_ext)
         process.wait()
