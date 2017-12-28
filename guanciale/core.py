@@ -21,15 +21,16 @@ import struct
 from errors import *
 
 _DEBUG = True if "DEBUG" in os.environ else False
+_WINDOWS = True if os.name == "nt" else False
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-LCYAN='\033[0;96m'
-LMAG='\033[95m'
-NC='\033[0m'
-LMAG_BG='\033[105m'
-RED_BG='\033[41m'
-YELL_BG='\033[43m'
+RED=''if _WINDOWS else '\033[0;31m'
+GREEN=''if _WINDOWS else '\033[0;32m'
+LCYAN=''if _WINDOWS else '\033[0;96m'
+LMAG=''if _WINDOWS else '\033[95m'
+NC=''if _WINDOWS else '\033[0m'
+LMAG_BG=''if _WINDOWS else '\033[105m'
+RED_BG=''if _WINDOWS else '\033[41m'
+YELL_BG=''if _WINDOWS else '\033[43m'
 
 def printerr(s):
     sys.stderr.write(RED_BG + "  error  " + NC + " " + str(s) + "\n")
