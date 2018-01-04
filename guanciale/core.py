@@ -440,6 +440,7 @@ class BinaryInfo(object):
             "proc_desc": {
                 "name": proc_info["name"],
                 "raw": base64.b64encode(proc_info["bytes"]),
+                "raw_len": len(proc_info["bytes"]),
                 "asm": asm,
                 "callconv": proc_info["calltype"],
                 "apicalls": handler.api,
@@ -546,6 +547,7 @@ class BinaryInfo(object):
             "proc_desc": {
                 "name": proc_info["name"],
                 "raw": proc_info['raw_data'],
+                "raw_len": len(fcn_bytes),
                 "asm": proc_info['asm'],
                 "callconv": proc_info["callconv"],
                 "apicalls": handler.api,
