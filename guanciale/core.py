@@ -287,6 +287,9 @@ class BinaryInfo(object):
         self.data["imports"] = []
         self.imports_dict = {}
         for imp in imports:
+            if len(imp["name"]) == 0:
+                continue
+            
             i = {
                 "name": imp["name"],
                 "addr": imp["plt"] #??? for PE binaries?
@@ -583,6 +586,9 @@ class BinaryInfo(object):
         self.data["imports"] = []
         self.imports_dict = {}
         for imp in imports:
+            if len(imp["name"]) == 0:
+                continue
+            
             i = {
                 "name": imp["name"],
                 "addr": imp["plt"] #??? for PE binaries?
