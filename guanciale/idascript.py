@@ -116,6 +116,8 @@ def theFlow(call_check, jump_check, flow_insns):
     if call_check:
         op = idc.GetOpnd(cur_addr, 0)
         op_type = idc.GetOpType(cur_addr, 0)
+        op_val = GetOperandValue(cur_addr, 0)
+        
         if (op_type == o_near or op_type == o_far or op_type == o_mem) and op_type != o_reg:
             isApi = False
             for imp in data['imports']:
@@ -124,15 +126,16 @@ def theFlow(call_check, jump_check, flow_insns):
                 if op == '_' + imp['name'] or op == imp['name']:
                         isApi = True
                         op = imp['name']
-                        target = imp['addr']
+                        #target = imp['addr']
                         break
                 for addr in idautils.CodeRefsTo(imp['addr'], 1):
                     if addr == cur_addr:
                         isApi = True
                         op = imp['name']
-                        target = imp['addr']
+                        #target = imp['addr']
                         break
-            if not isApi:
+            target = op_val
+            if target == BADADDR:
                 target = idc.get_name_ea_simple(op)
                 if target == BADADDR:
                     target = idc.get_name_ea_simple(op[1:])

@@ -110,7 +110,7 @@ class ProcedureHandler(object):
                 next = instr.offset + instr.size - self.offset
                 if next < self.size and next not in bb:
                     bb.append(next)
-
+        
         bb.sort()
         #bb.append(self.offset + self.size)
         bb.append(self.size)
@@ -182,7 +182,7 @@ class ProcedureHandler(object):
             addrs[ips[i]] = i
         
         vexhash = datasketch.MinHash(num_perm=64)
-        #self.vex_code = ""
+        self.vex_code = ""
         
         for irsb in irsbs:
             stmts = irsb.statements
@@ -199,7 +199,7 @@ class ProcedureHandler(object):
                         stmts[i].dst.value = addrs[stmts[i].dst.value]
                         stmts[i] = stmts[i].__str__("_PC_")
                 
-                #self.vex_code += str(stmts[i]) + "\n"
+                self.vex_code += str(stmts[i]) + "\n"
                 vexhash.update(str(stmts[i]))
         
         lean_vexhash = datasketch.LeanMinHash(vexhash)
@@ -212,15 +212,14 @@ class ProcedureHandler(object):
     def liftByInsns(self):
         consts = {}
         ips = []
-        #vex_code = []
         
         pc_offset = self.arch.registers["pc"][0]
         regs = {}
         irsbs = []
 
-        for instr in self.insns_list:
-            off = instr[0]
-            instr = instr[1]
+        for instr_c in range(len(self.insns_list)):
+            off = self.insns_list[instr_c][0]
+            instr = self.insns_list[instr_c][1]
             #manage instruction not recognized by libVEX
             if self.arch.name == "X86" or self.arch.name == "AMD64":
                 if instr == "\xf4": #hlt x86 instruction
@@ -246,6 +245,7 @@ class ProcedureHandler(object):
                 if isinstance(stmts[i], pyvex.stmt.IMark):
                     n_addr = stmts[i].addr + stmts[i].len
                 elif isinstance(stmts[i], pyvex.stmt.Put):
+                    
                     if stmts[i].offset == pc_offset and len(stmts[i].constants) == 1:
                         c = stmts[i].constants[0]
                         if c.value in self.targets:
@@ -253,7 +253,7 @@ class ProcedureHandler(object):
                             #stmts[i].reg_name = "_PC_"
                             stmts[i] = stmts[i].__str__("_PC_")
                             continue
-                        elif i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and stmts[i+1].addr == n_addr:
+                        elif c.value == n_addr:
                             stmts[i].data = StrConst("_NEXT_")
                             stmts[i] = stmts[i].__str__("_PC_")
                             continue
@@ -296,10 +296,11 @@ class ProcedureHandler(object):
             addrs[ips[i]] = i
         
         vexhash = datasketch.MinHash(num_perm=64)
+        #self.vex_code = ""
         
         for irsb in irsbs:
             if type(irsb) == type(""):
-                #vex_code.append(irsb)
+                #self.vex_code += irsb + "\n"
                 vexhash.update(irsb)
                 continue
             
@@ -317,7 +318,7 @@ class ProcedureHandler(object):
                         stmts[i].dst.value = addrs[stmts[i].dst.value]
                         stmts[i] = stmts[i].__str__("_PC_")
                 
-                #vex_code.append(str(stmts[i]))
+                #self.vex_code += str(stmts[i]) + "\n"
                 vexhash.update(str(stmts[i]))
         
         lean_vexhash = datasketch.LeanMinHash(vexhash)
@@ -327,11 +328,12 @@ class ProcedureHandler(object):
         self.vexhash = str(vexhash_buf)
 
     def lift(self):
-        try:
+        '''try:
             self.liftByBlocks()
         except pyvex.errors.PyVEXError as err:
             #print err
-            self.liftByInsns()       
+            self.liftByInsns()  '''
+        self.liftByInsns()
         
     
     def handleFlow(self):

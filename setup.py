@@ -7,7 +7,7 @@ __email__ = "andreafioraldi@gmail.com, rop2bash@gmail.com"
 
 from setuptools import setup
 
-VER = "1.0.11"
+VER = "1.0.12"
 
 setup(
     name='guanciale',
