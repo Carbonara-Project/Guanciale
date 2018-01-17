@@ -87,139 +87,34 @@ class StrConst(pyvex.const.IRConst):
 
 
 class ProcedureHandler(object):
-    def __init__(self, code, insns_list, offset, bb_insns, arch):
+    def __init__(self, insns_list, bb_insns, arch):
         self.insns_list = insns_list
-        self.offset = offset
         self.bb_insns = bb_insns
         self.arch = arch
-        self.code = code
-        self.size = len(code)
 
 
-    def liftByBlocks(self):
-        bb = [0]
-        for instr in self.bb_insns:
-            if instr.jumpout:
-                #if jump out continue with the next instruction
-                next = instr.offset + instr.size - self.offset
-                if next < self.size and next not in bb:
-                    bb.append(next)
-            else:
-                if instr.addr - self.offset not in bb:
-                    bb.append(instr.addr - self.offset)
-                next = instr.offset + instr.size - self.offset
-                if next < self.size and next not in bb:
-                    bb.append(next)
-        
-        bb.sort()
-        #bb.append(self.offset + self.size)
-        bb.append(self.size)
+    def work(self):
+        self.handleFlow()
+        self.handleInsns()
+
+    def handleInsns(self):
         consts = {}
         ips = []
         
-        pc_offset = self.arch.registers["pc"][0]
-        regs = {}
-        irsbs = []
-
-        for bidx in range(len(bb) -1):
-            irsb = pyvex.IRSB(self.code[bb[bidx]:bb[bidx+1]], self.offset + bb[bidx], self.arch, opt_level=0)
-            irsbs.append(irsb)
-        
-            stmts = irsb.statements
-            n_addr = 0
-            
-            for i in range(len(stmts)):
-                #TODO PutI GetI
-                if isinstance(stmts[i], pyvex.stmt.IMark):
-                    n_addr = stmts[i].addr + stmts[i].len
-                elif isinstance(stmts[i], pyvex.stmt.Put):
-                    if stmts[i].offset == pc_offset and len(stmts[i].constants) == 1:
-                        c = stmts[i].constants[0]
-                        if c.value in self.targets:
-                            stmts[i].data = StrConst(self.targets[c.value])
-                            #stmts[i].reg_name = "_PC_"
-                            stmts[i] = stmts[i].__str__("_PC_")
-                            continue
-                        elif i+1 < len(stmts) and isinstance(stmts[i+1], pyvex.stmt.IMark) and stmts[i+1].addr == n_addr:
-                            stmts[i].data = StrConst("_NEXT_")
-                            stmts[i] = stmts[i].__str__("_PC_")
-                            continue
-                        else:
-                            ips.append(c.value)
-                            stmts[i].reg_name = "@"
-                    else:
-                        # constants replace
-                        for j in range(len(stmts[i].constants)):
-                            if stmts[i].constants[j].value in self.targets:
-                                stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
-                        
-                        # registers abstraction
-                        regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
-                        stmts[i].offset = regs[stmts[i].offset]
-                elif isinstance(stmts[i], pyvex.stmt.Exit):
-                    c = stmts[i].dst
-                    if c.value in self.targets:
-                        stmts[i] = "if (%s) { PUT(_PC_) = %s; %s }" % (stmts[i].guard, self.targets[c.value], stmts[i].jumpkind)
-                        continue
-                    else:
-                        ips.append(c.value)
-                        stmts[i].reg_name = "$"
-                else:
-                    # constants replace
-                    for j in range(len(stmts[i].constants)):
-                        if stmts[i].constants[j].value in self.targets:
-                            stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
-                for expr in stmts[i].expressions:
-                    if isinstance(expr, pyvex.expr.Get):
-                        # registers abstraction
-                        regs[expr.offset] = regs.get(expr.offset, len(regs))
-                        expr.offset = regs[expr.offset]
-
-        #order addresses
-        addrs = {}
-        ips.sort()
-        for i in range(len(ips)):
-            addrs[ips[i]] = i
-        
-        vexhash = datasketch.MinHash(num_perm=64)
-        self.vex_code = ""
-        
-        for irsb in irsbs:
-            stmts = irsb.statements
-            
-            for i in range(len(stmts)):
-                if isinstance(stmts[i], pyvex.stmt.IMark) or isinstance(stmts[i], pyvex.stmt.AbiHint):
-                    continue
-                
-                if hasattr(stmts[i], "reg_name"):
-                    if stmts[i].reg_name == "@":
-                        stmts[i].constants[0].value = addrs[stmts[i].constants[0].value]
-                        stmts[i] = stmts[i].__str__("_PC_")
-                    elif stmts[i].reg_name == "$":
-                        stmts[i].dst.value = addrs[stmts[i].dst.value]
-                        stmts[i] = stmts[i].__str__("_PC_")
-                
-                self.vex_code += str(stmts[i]) + "\n"
-                vexhash.update(str(stmts[i]))
-        
-        lean_vexhash = datasketch.LeanMinHash(vexhash)
-        vexhash_buf = bytearray(lean_vexhash.bytesize())
-        lean_vexhash.serialize(vexhash_buf)
-        
-        self.vexhash = str(vexhash_buf)
-        
-
-    def liftByInsns(self):
+        #set dafaukt value for PC, SP, BP
+        pc_offset = self.arch.ip_offset
+        regs = {
+            pc_offset: 0,
+            self.arch.sp_offset: 1,
+            self.arch.bp_offset: 2
+        }
         consts = {}
-        ips = []
-        
-        pc_offset = self.arch.registers["pc"][0]
-        regs = {}
         irsbs = []
 
         for instr_c in range(len(self.insns_list)):
             off = self.insns_list[instr_c][0]
             instr = self.insns_list[instr_c][1]
+            
             #manage instruction not recognized by libVEX
             if self.arch.name == "X86" or self.arch.name == "AMD64":
                 if instr == "\xf4": #hlt x86 instruction
@@ -233,10 +128,10 @@ class ProcedureHandler(object):
             try:
                 irsb = pyvex.IRSB(instr, off, self.arch, opt_level=0)
             except pyvex.errors.PyVEXError as err:
-                print("Error with instruction " + instr.encode("hex"))
+                print("[Please report to the developer] Error with instruction " + instr.encode("hex"))
                 raise err
             irsbs.append(irsb)
-        
+            
             stmts = irsb.statements
             n_addr = 0
             
@@ -250,21 +145,28 @@ class ProcedureHandler(object):
                         c = stmts[i].constants[0]
                         if c.value in self.targets:
                             stmts[i].data = StrConst(self.targets[c.value])
-                            #stmts[i].reg_name = "_PC_"
-                            stmts[i] = stmts[i].__str__("_PC_")
+                            stmts[i].offset = 0
                             continue
                         elif c.value == n_addr:
                             stmts[i].data = StrConst("_NEXT_")
-                            stmts[i] = stmts[i].__str__("_PC_")
+                            stmts[i].offset = 0
                             continue
                         else:
                             ips.append(c.value)
-                            stmts[i].reg_name = "@"
+                            stmts[i].reg_name = 0xABADCAFE
+                            stmts[i].offset = 0
                     else:
                         # constants replace
                         for j in range(len(stmts[i].constants)):
-                            if stmts[i].constants[j].value in self.targets:
-                                stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
+                            c = stmts[i].constants[j]
+                            if c.value in self.targets:
+                                stmts[i].constants[j] = StrConst(self.targets[c.value])
+                            elif c.value == n_addr:
+                                stmts[i].constants[j] = StrConst("_NEXT_")
+                            else:
+                                # constants abstraction
+                                consts[c.value] = consts.get(c.value, len(consts))
+                                c.value = consts[c.value]
                         
                         # registers abstraction
                         regs[stmts[i].offset] = regs.get(stmts[i].offset, len(regs))
@@ -272,17 +174,24 @@ class ProcedureHandler(object):
                 elif isinstance(stmts[i], pyvex.stmt.Exit):
                     c = stmts[i].dst
                     if c.value in self.targets:
-                        stmts[i] = "if (%s) { PUT(_PC_) = %s; %s }" % (stmts[i].guard, self.targets[c.value], stmts[i].jumpkind)
+                        stmts[i] = "if (%s) { PUT(offset=0) = %s; %s }" % (stmts[i].guard, self.targets[c.value], stmts[i].jumpkind)
                         continue
                     else:
                         ips.append(c.value)
-                        stmts[i].reg_name = "$"
+                        stmts[i].reg_name = 0xDEADBEEF
                 else:
                     # constants replace
                     for j in range(len(stmts[i].constants)):
-                        if stmts[i].constants[j].value in self.targets:
-
-                            stmts[i].constants[j] = StrConst(self.targets[stmts[i].constants[j].value])
+                        c = stmts[i].constants[j]
+                        if c.value in self.targets:
+                            stmts[i].constants[j] = StrConst(self.targets[c.value])
+                        elif c.value == n_addr:
+                            stmts[i].constants[j] = StrConst("_NEXT_")
+                        else:
+                            # constants abstraction
+                            consts[c.value] = consts.get(c.value, len(consts))
+                            c.value = consts[c.value]
+                
                 for expr in stmts[i].expressions:
                     if isinstance(expr, pyvex.expr.Get):
                         # registers abstraction
@@ -295,45 +204,55 @@ class ProcedureHandler(object):
         for i in range(len(ips)):
             addrs[ips[i]] = i
         
-        vexhash = datasketch.MinHash(num_perm=64)
         #self.vex_code = ""
+        #self.shingled_code = ""
         
-        for irsb in irsbs:
+        vexhash = datasketch.MinHash(num_perm=64)
+        shingled = {}
+        last = ""
+        
+        for c in range(len(irsbs)):
+            irsb = irsbs[c]
+            
             if type(irsb) == type(""):
-                #self.vex_code += irsb + "\n"
-                vexhash.update(irsb)
+                ngram = last + irsb
+                #self.vex_code += "+++ Instr #%d +++\n%s\n" % (c, irsb)
+                shingled[ngram] = shingled.get(ngram, 0) +1
+                last = irsb
                 continue
             
             stmts = irsb.statements
+            ins = ""
             
             for i in range(len(stmts)):
                 if isinstance(stmts[i], pyvex.stmt.IMark) or isinstance(stmts[i], pyvex.stmt.AbiHint):
                     continue
                 
                 if hasattr(stmts[i], "reg_name"):
-                    if stmts[i].reg_name == "@":
+                    if stmts[i].reg_name == 0xABADCAFE:
                         stmts[i].constants[0].value = addrs[stmts[i].constants[0].value]
-                        stmts[i] = stmts[i].__str__("_PC_")
-                    elif stmts[i].reg_name == "$":
+                    elif stmts[i].reg_name == 0xDEADBEEF:
                         stmts[i].dst.value = addrs[stmts[i].dst.value]
-                        stmts[i] = stmts[i].__str__("_PC_")
                 
-                #self.vex_code += str(stmts[i]) + "\n"
-                vexhash.update(str(stmts[i]))
+                v = str(stmts[i]) + "\n"
+                ins += v
+                ngram = last + v
+                shingled[ngram] = shingled.get(ngram, 0) +1
+                last = v
+            
+            #self.vex_code += "+++ Instr #%d +++\n%s\n" % (c, ins)
+        
+        for ngram in shingled:
+            for c in range(shingled[ngram]):
+                vexhash.update("[%d]\n%s" % (c, ngram))
+                #self.shingled_code += "[%d]\n%s" % (c, ngram)
         
         lean_vexhash = datasketch.LeanMinHash(vexhash)
         vexhash_buf = bytearray(lean_vexhash.bytesize())
         lean_vexhash.serialize(vexhash_buf)
         
         self.vexhash = str(vexhash_buf)
-
-    def lift(self):
-        '''try:
-            self.liftByBlocks()
-        except pyvex.errors.PyVEXError as err:
-            #print err
-            self.liftByInsns()  '''
-        self.liftByInsns()
+        
         
     
     def handleFlow(self):
@@ -408,78 +327,3 @@ class ProcedureHandler(object):
             print pp
         '''
 
-    """
-    def handleFlow(self):
-        
-        #TODO replace sorting loops with sorted function
-        api = []
-        internals = []
-        jumps = []
-        api_str = ""
-
-        self.targets = {}
-        self.api = []
-        #self.flow = []
-        
-        for instr in self.bb_insns:
-            if isinstance(instr, CallInsn):
-                if instr.is_api:
-                    self.targets[instr.addr] = "API:" + instr.fcn_name
-                    
-                    self.api.append({"name": instr.fcn_name})
-                else:
-                    internals.append(instr.addr)
-                    
-            else:
-                if instr.addr not in self.targets:
-                    if instr.jumpout:
-                        internals.append(instr.addr)
-                    else:
-                        jumps.append(instr.addr)
-        
-        jumps.sort()
-        jumps_dict = {}
-        for i in range(len(jumps)):
-            jumps_dict[jumps[i]] = i
-            
-            self.targets[jumps[i]] = "JMP:" + str(i)
-        
-        internals_sorted = internals[:]
-        internals_sorted.sort()
-        calleds_dict = {}
-        for i in range(len(internals_sorted)):
-            calleds_dict[internals_sorted[i]] = str(i)
-            
-            self.targets[internals_sorted[i]] = "OUT:" + hex(i)
-        
-        flowhash = datasketch.MinHash(num_perm=32)
-        
-        for instr in self.bb_insns:
-            if isinstance(instr, CallInsn):
-                if instr.is_api:
-                    #self.flow.append("API:" + instr.fcn_name)
-                    flowhash.update("API:" + instr.fcn_name)
-                else:
-                    #self.flow.append("OUT:" + calleds_dict[instr.addr])
-                    flowhash.update("OUT:" + calleds_dict[instr.addr])
-            else:
-                if instr.addr not in self.targets:
-                    if instr.jumpout:
-                        #self.flow.append("OUT:" + calleds_dict[instr.addr])
-
-                        flowhash.update("OUT:" + calleds_dict[instr.addr])
-                    else:
-                        #self.flow.append("JMP:" + jumps_dict[instr.addr])
-                        flowhash.update("JMP:" + jumps_dict[instr.addr])
-        
-        lean_flowhash = datasketch.LeanMinHash(flowhash)
-        flowhash_buf = bytearray(lean_flowhash.bytesize())
-        lean_flowhash.serialize(flowhash_buf)
-        
-        self.flowhash = str(flowhash_buf)
-        
-        '''
-        for f in self.flow:
-            print f
-        '''
-    """

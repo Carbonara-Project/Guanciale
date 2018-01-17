@@ -18,6 +18,8 @@ import subprocess
 import random
 import string
 import struct
+import time
+import multiprocessing as mp
 from errors import *
 
 _DEBUG = True if "DEBUG" in os.environ else False
@@ -48,6 +50,148 @@ _MODE_IDA = 1
 _MODE_IDB = 2
 
 R2PLUGIN = 0xABADCAFE
+
+
+def _processR2Procedure(proc_info, imports_dict, arch):
+    try:
+        insns_list = []
+        asm = ""
+        flow_insns = []
+        
+        fcn_offset = proc_info["offset"]
+        fcn_size = proc_info["size"]
+        sym_imp_l = len("sym.imp") 
+        
+        for instr in proc_info["instructions"]:
+            if instr["type"] == "invalid":
+                continue
+            
+            #get the first byte in hex
+            first_byte = instr["bytes"][:2]
+
+            #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
+            #self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
+            
+            #insert comments in disassembly if presents
+            if "comment" in instr:
+                asm += hex(instr["offset"]) + "   " + instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
+            else:
+                asm += hex(instr["offset"]) + "   " + instr["opcode"] + "\n"
+                
+            #check if the instruction is of type 'call'
+            if instr["type"] == "call" and "jump" in instr:
+                target_name = instr["opcode"].split()[-1]
+                call_instr = None
+                if target_name[:sym_imp_l] == "sym.imp":
+                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True)
+                #elif target_name[:len("sub.")] == "sub.":
+                #    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True)
+                elif target_name[:len("sym.")] == "sym." and target_name[len("sym."):] in imports_dict:
+                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sym."):], True)
+                elif target_name in imports_dict:
+                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name, True)
+                else:
+                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
+                flow_insns.append(call_instr)
+                
+            #check if the instruction is of type 'jump'
+            elif (instr["type"] == "cjmp" or instr["type"] == "jmp") and "jump" in instr:
+                target = instr["jump"]
+                jumpout = target < fcn_offset or target >= (fcn_offset + fcn_size)
+                jump_instr = matching.JumpInsn(instr["offset"], instr["size"], target, jumpout)
+                flow_insns.append(jump_instr)
+            
+            insns_list.append((instr["offset"], instr["bytes"].decode("hex")))
+        
+        handler = matching.ProcedureHandler(insns_list, flow_insns, arch)
+        handler.work()
+        
+        '''
+        print
+        print "****** (0x%x) %s ******" % (fcn_offset, proc_info["name"])
+        print asm
+        print
+        print handler.vex_code
+        print
+        print handler.shingled_code
+        print
+        '''
+        
+        proc_dict = {
+            "offset": fcn_offset,
+            "proc_desc": {
+                "name": proc_info["name"],
+                "raw": base64.b64encode(proc_info["bytes"]),
+                "raw_len": len(proc_info["bytes"]),
+                "asm": asm,
+                "callconv": proc_info["calltype"],
+                "apicalls": handler.api,
+                "arch": arch.name
+            }
+        }
+        
+        proc_dict["proc_desc"]["flow_hash"] = handler.flowhash.encode("hex")
+        proc_dict["proc_desc"]["vex_hash"] = handler.vexhash.encode("hex")
+        proc_dict["proc_desc"]["full_hash"] = hashlib.md5(proc_info["bytes"]).hexdigest()
+        
+        return proc_dict
+    except Exception:
+        if _DEBUG:
+            import traceback
+            traceback.print_exc()
+        return proc["name"]
+
+def _processIDAProcedure(proc_info, imports_dict, arch):
+    try:
+        fcn_bytes = base64.b64decode(proc_info['raw_data'])
+        insns_list = []
+        for ins in proc_info['insns_list']:
+            insns_list.append((ins[0], base64.b64decode(ins[1])))
+        opcodes_list = proc_info['ops']
+        
+        #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
+        #for i in range(0, len(opcodes_list), 2):
+        #    self.data["codebytes"][opcodes_list[i:i+2]] = self.data["codebytes"].get(opcodes_list[i:i+2], 0) +1
+        
+        flow_insns_tuples = proc_info['flow_insns']
+        flow_insns = []
+        for ins in flow_insns_tuples:
+            if len(ins) == 5:
+                instr = matching.CallInsn(*(ins))
+            elif len(ins) == 4:
+                instr = matching.JumpInsn(*(ins))
+            flow_insns.append(instr) 
+
+        handler = matching.ProcedureHandler(insns_list, flow_insns, arch)
+        handler.work()
+        
+        if proc_info["callconv"] == "":
+            proc_info["callconv"] = None
+        
+        proc_dict = {
+            "offset": proc_info["offset"],
+            "proc_desc": {
+                "name": proc_info["name"],
+                "raw": proc_info['raw_data'],
+                "raw_len": len(fcn_bytes),
+                "asm": proc_info['asm'],
+                "callconv": proc_info["callconv"],
+                "apicalls": handler.api,
+                "arch": arch.name
+            }
+        }
+        
+        proc_dict["proc_desc"]["flow_hash"] = handler.flowhash.encode("hex")
+        proc_dict["proc_desc"]["vex_hash"] = handler.vexhash.encode("hex")
+        proc_dict["proc_desc"]["full_hash"] = hashlib.md5(fcn_bytes).hexdigest()
+        
+        return proc_dict
+    except Exception:
+        if _DEBUG:
+            import traceback
+            traceback.print_exc()
+        return proc["name"]
+
 
 class BinaryInfo(object):
 
@@ -96,7 +240,7 @@ class BinaryInfo(object):
                 "sha256": sha256_dig
             },
             "procs": [],
-            "codebytes": {}
+            #"codebytes": {}
         }
         
         #get binary properties
@@ -188,7 +332,7 @@ class BinaryInfo(object):
     
     def processSingle(self, proc_search):
         if self._mode == _MODE_R2:
-            self.processProc = self._processR2Procedure
+            processProc = _processR2Procedure
         elif self._mode == _MODE_IDA:
             self.processProc = self._processIDAProcedure
         elif self._mode == _MODE_IDB:
@@ -211,29 +355,51 @@ class BinaryInfo(object):
         return None
     
     
-    def processAll(self):
+    def processAll(self, workers=None):
+        
         if self._mode == _MODE_R2:
-            self.processProc = self._processR2Procedure
-        elif self._mode == _MODE_IDA:
-            self.processProc = self._processIDAProcedure
+            processProc = _processR2Procedure
+            imports_dict = self.imports_dict
+        elif self._mode == self._MODE_IDA:
+            processProc = _processIDAProcedure
+            imports_dict = None
         elif self._mode == _MODE_IDB:
-            self.processProc = self._processR2Procedure
+            processProc = _processR2Procedure
+            imports_dict = self.imports_dict
         else:
             raise RuntimeError("BinaryInfo.processAll: mode not valid")
         
+        results = []
+        
+        def _callback(res):
+            if type(res) == type(""):
+                printerr(" >> " + RED + "Error" + NC +" on function %s, skipped" % res)
+            else:
+                results.append(res)
+        
         print(" >> Processing all procedures")
         with status.Status(len(self.procs)) as bar:
-            count = 0
-            for proc in self.procs:
-                try:
-                    self.data["procs"].append(self.processProc(proc))
-                except Exception:
-                    if _DEBUG:
-                        import traceback
-                        traceback.print_exc()
-                    printerr(" >> " + RED + "Error" + NC +" on function %s, skipped" % proc["name"])
-                count += 1
-                bar.update(count)
+            if workers == 1:
+                count = 0
+                for proc in self.procs:
+                    r = processProc(proc, imports_dict, self.arch)
+                    _callback(r)
+                    count += 1
+                    bar.update(count)
+            else:
+                if workers == None:
+                    pool = mp.Pool(mp.cpu_count())
+                else:
+                    pool = mp.Pool(workers)
+                
+                r = [pool.apply_async(processProc, args=(proc, imports_dict, self.arch), callback=_callback) for proc in self.procs]
+                pool.close()
+                
+                while len(results) != len(self.procs):
+                    bar.update(len(results))
+                    time.sleep(0.05)
+        
+        self.data["procs"] = results
         
         return self.data
     
@@ -384,78 +550,7 @@ class BinaryInfo(object):
         printout("\r" + GREEN + "[x]" + NC + " Building procedures index\n")
     
     
-    def _processR2Procedure(self, proc_info):
-        insns_list = []
-        asm = ""
-        flow_insns = []
-        
-        fcn_offset = proc_info["offset"]
-        fcn_size = proc_info["size"]
-        sym_imp_l = len("sym.imp") 
-        
-        for instr in proc_info["instructions"]:
-            if instr["type"] == "invalid":
-                continue
-            
-            #get the first byte in hex
-            first_byte = instr["bytes"][:2]
 
-            #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
-            self.data["codebytes"][first_byte] = self.data["codebytes"].get(first_byte, 0) +1
-            
-            #insert comments in disassembly if presents
-            if "comment" in instr:
-                asm += hex(instr["offset"]) + "   " + instr["opcode"] + "  ; " + base64.b64decode(instr["comment"]) + "\n"
-            else:
-                asm += hex(instr["offset"]) + "   " + instr["opcode"] + "\n"
-                
-            #check if the instruction is of type 'call'
-            if instr["type"] == "call" and "jump" in instr:
-                target_name = instr["opcode"].split()[-1]
-                call_instr = None
-                if target_name[:sym_imp_l] == "sym.imp":
-                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[sym_imp_l +1:], True)
-                #elif target_name[:len("sub.")] == "sub.":
-                #    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sub."):], True)
-                elif target_name[:len("sym.")] == "sym." and target_name[len("sym."):] in self.imports_dict:
-                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name[len("sym."):], True)
-                elif target_name in self.imports_dict:
-                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name, True)
-                else:
-                    call_instr = matching.CallInsn(instr["offset"], instr["size"], instr["jump"], target_name)
-                flow_insns.append(call_instr)
-                
-            #check if the instruction is of type 'jump'
-            elif (instr["type"] == "cjmp" or instr["type"] == "jmp") and "jump" in instr:
-                target = instr["jump"]
-                jumpout = target < fcn_offset or target >= (fcn_offset + fcn_size)
-                jump_instr = matching.JumpInsn(instr["offset"], instr["size"], target, jumpout)
-                flow_insns.append(jump_instr)
-            
-            insns_list.append((instr["offset"], instr["bytes"].decode("hex")))
-        
-        handler = matching.ProcedureHandler(proc_info["bytes"], insns_list, proc_info["offset"], flow_insns, self.arch)
-        handler.handleFlow()
-        handler.lift()
-        
-        proc_dict = {
-            "offset": fcn_offset,
-            "proc_desc": {
-                "name": proc_info["name"],
-                "raw": base64.b64encode(proc_info["bytes"]),
-                "raw_len": len(proc_info["bytes"]),
-                "asm": asm,
-                "callconv": proc_info["calltype"],
-                "apicalls": handler.api,
-                "arch": self.arch.name
-            }
-        }
-        
-        proc_dict["proc_desc"]["flow_hash"] = handler.flowhash.encode("hex")
-        proc_dict["proc_desc"]["vex_hash"] = handler.vexhash.encode("hex")
-        proc_dict["proc_desc"]["full_hash"] = hashlib.md5(proc_info["bytes"]).hexdigest()
-        
-        return proc_dict
 
 
     def _fromIDAPro(self, filename):
@@ -516,53 +611,6 @@ class BinaryInfo(object):
         printout("\r" + GREEN + "[x]" + NC + " Getting file properties and symbols\n")
         
         self.procs = data['procedures']
-
-
-    def _processIDAProcedure(self, proc_info):
-        fcn_bytes = base64.b64decode(proc_info['raw_data'])
-        insns_list = []
-        for ins in proc_info['insns_list']:
-            insns_list.append((ins[0], base64.b64decode(ins[1])))
-        opcodes_list = proc_info['ops']
-        
-        #insert ops in codebytes (field with the frequency of each opcode, useful for ML)
-        for i in range(0, len(opcodes_list), 2):
-            self.data["codebytes"][opcodes_list[i:i+2]] = self.data["codebytes"].get(opcodes_list[i:i+2], 0) +1
-        
-        flow_insns_tuples = proc_info['flow_insns']
-        flow_insns = []
-        for ins in flow_insns_tuples:
-            if len(ins) == 5:
-                instr = matching.CallInsn(*(ins))
-            elif len(ins) == 4:
-                instr = matching.JumpInsn(*(ins))
-            flow_insns.append(instr) 
-
-        handler = matching.ProcedureHandler(fcn_bytes, insns_list, proc_info["offset"], flow_insns, self.arch)
-        handler.handleFlow()
-        handler.lift()
-        
-        if proc_info["callconv"] == "":
-            proc_info["callconv"] = None
-        
-        proc_dict = {
-            "offset": proc_info["offset"],
-            "proc_desc": {
-                "name": proc_info["name"],
-                "raw": proc_info['raw_data'],
-                "raw_len": len(fcn_bytes),
-                "asm": proc_info['asm'],
-                "callconv": proc_info["callconv"],
-                "apicalls": handler.api,
-                "arch": self.arch.name
-            }
-        }
-        
-        proc_dict["proc_desc"]["flow_hash"] = handler.flowhash.encode("hex")
-        proc_dict["proc_desc"]["vex_hash"] = handler.vexhash.encode("hex")
-        proc_dict["proc_desc"]["full_hash"] = hashlib.md5(fcn_bytes).hexdigest()
-        
-        return proc_dict   
 
 
     def _parseIDB(self, filename):
