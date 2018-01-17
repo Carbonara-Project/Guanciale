@@ -360,7 +360,7 @@ class BinaryInfo(object):
         if self._mode == _MODE_R2:
             processProc = _processR2Procedure
             imports_dict = self.imports_dict
-        elif self._mode == self._MODE_IDA:
+        elif self._mode == _MODE_IDA:
             processProc = _processIDAProcedure
             imports_dict = None
         elif self._mode == _MODE_IDB:
