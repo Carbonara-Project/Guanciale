@@ -19,6 +19,7 @@ import random
 import string
 import struct
 import time
+import datasketch
 import multiprocessing as mp
 from errors import *
 
@@ -132,7 +133,6 @@ def _processR2Procedure(proc_info, imports_dict, arch):
         
         proc_dict["proc_desc"]["flow_hash"] = handler.flowhash.encode("hex")
         proc_dict["proc_desc"]["vex_hash"] = handler.vexhash.encode("hex")
-        proc_dict["proc_desc"]["full_hash"] = hashlib.md5(proc_info["bytes"]).hexdigest()
         
         return proc_dict
     except Exception:
@@ -183,7 +183,6 @@ def _processIDAProcedure(proc_info, imports_dict, arch):
         
         proc_dict["proc_desc"]["flow_hash"] = handler.flowhash.encode("hex")
         proc_dict["proc_desc"]["vex_hash"] = handler.vexhash.encode("hex")
-        proc_dict["proc_desc"]["full_hash"] = hashlib.md5(fcn_bytes).hexdigest()
         
         return proc_dict
     except Exception:
@@ -203,7 +202,7 @@ class BinaryInfo(object):
             return None
         return r
 
-    def __init__(self, filename):
+    def __init__(self, filename, arch=None, bits=None):
         
         if filename == R2PLUGIN:
             self.r2 = r2pipe.open("#!pipe")
@@ -216,6 +215,20 @@ class BinaryInfo(object):
         else:
             self.r2 = r2pipe.open(filename)
         
+        if arch != None:
+            if arch not in ("arm", "x86", "mips", "ppc"):
+                raise ValueError("BinaryInfo: arch_bits_endian param: arch %s not supported" % str(arch))
+            self.r2.cmd("e asm.arch=%s" % arch)
+        
+        if bits != None:
+            try:
+                bits = int(bits)
+            except:
+                raise ValueError("BinaryInfo: arch_bits_endian param: bits %s not supported" % str(bits))
+            if bits not in (32, 64):
+                raise ValueError("BinaryInfo: arch_bits_endian param: bits %s not supported" % str(bits))
+            self.r2.cmd("e asm.bits=%d" % bits)
+            
         #open the binary file and compute md5 and sha256 hash
         printout(RED + "[ ]" + NC + "  Computing hashes of the entire binary")
         binfile = open(filename, "rb")
@@ -248,6 +261,11 @@ class BinaryInfo(object):
         self.data["info"] = self._cmd_j('iIj')
         self.data["info"]["program_class"] = self.data["info"]["class"] #rename for the backend
         del self.data["info"]["class"]
+        
+        if arch != None:
+            self.data["info"]["arch"] = arch
+        if bits != None:
+            self.data["info"]["bits"] = bits
         
         self.data["info"]["filename"] = filename
         self.filename = filename
@@ -292,6 +310,28 @@ class BinaryInfo(object):
         
     def addStrings(self):
         #get strings contained in the binary
+        '''
+        printout(RED + "[ ]" + NC + " Getting strings")
+        r2_strings = self._cmd_j('izzj')["strings"]
+        
+        N = 4
+        strhash = datasketch.MinHash(num_perm=256)
+        for strg in r2_strings:
+            val = base64.b64decode(strg["string"])
+            if len(val) < 4:
+                strhash.update(val)
+                continue
+            
+            for i in xrange(len(sentence)-N+1):
+                strhash.update(val[i:i+N])
+        
+        lean_strhash = datasketch.LeanMinHash(strhash)
+        strhash_buf = bytearray(lean_strhash.bytesize())
+        lean_strhash.serialize(strhash_buf)
+        self.data["str_hash"] = str(strhash_buf).encode("hex")
+        
+        printout("\r" + GREEN + "[x]" + NC + " Getting strings\n")
+        '''
         printout(RED + "[ ]" + NC + " Getting strings")
         r2_strings = self._cmd_j('izzj')["strings"]
         
@@ -442,6 +482,8 @@ class BinaryInfo(object):
         printout(RED + "[ ]" + NC + " Getting linked libraries")
         libs_list = self._cmd_j('ilj')
         self.data['libs'] = []
+        if libs_list == None:
+            libs_list = []
         for lib in libs_list:
             self.data['libs'].append({"name": lib})
         printout("\r" + GREEN + "[x]" + NC + " Getting linked libraries\n")
