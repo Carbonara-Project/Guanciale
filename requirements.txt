@@ -4,4 +4,3 @@ carbonara-pyvex
 requests
 appdirs
 datasketch
-r2pipe
