@@ -250,6 +250,7 @@ def writeConfig():
         "usewine": usewine
     }
     try:
+        mkpath(os.path.dirname(dirs.user_config_dir))
         config_file = open(os.path.join(os.path.dirname(dirs.user_config_dir), "carbonara_guanciale.config.json"), "w")
     except IOError as err:
         if err.errno == 13: #permission denied
