@@ -332,19 +332,19 @@ class BinaryInfo(object):
         
         printout("\r" + GREEN + "[x]" + NC + " Getting strings\n")
         '''
-        printout(RED + "[ ]" + NC + " Getting strings")
-        r2_strings = self._cmd_j('izzj')["strings"]
+        #printout(RED + "[ ]" + NC + " Getting strings")
+        #r2_strings = self._cmd_j('izzj')["strings"]
         
         self.data["strings"] = []
-        for strg in r2_strings:
+        '''for strg in r2_strings:
             s = {
                 "val": strg["string"],
                 "offset": strg["paddr"],
                 "size": strg["size"],
                 "encoding": strg["type"]
             }
-            self.data["strings"].append(s)
-        printout("\r" + GREEN + "[x]" + NC + " Getting strings\n")
+            self.data["strings"].append(s)'''
+        #printout("\r" + GREEN + "[x]" + NC + " Getting strings\n")
     
     
     def grabProcedures(self, engine, database=None):
@@ -411,14 +411,17 @@ class BinaryInfo(object):
         
         results = []
         
-        def _callback(res):
-            if type(res) == type(""):
-                printerr(" >> " + RED + "Error" + NC +" on function %s, skipped" % res)
-            else:
-                results.append(res)
         
         print(" >> Processing all procedures")
         with status.Status(len(self.procs)) as bar:
+            
+            def _callback(res):
+                if type(res) == type(""):
+                    printerr(" >> " + RED + "Error" + NC +" on function %s, skipped" % res)
+                else:
+                    results.append(res)
+                bar.update(len(results))
+            
             if workers == 1:
                 count = 0
                 for proc in self.procs:
@@ -435,9 +438,7 @@ class BinaryInfo(object):
                 r = [pool.apply_async(processProc, args=(proc, imports_dict, self.arch), callback=_callback) for proc in self.procs]
                 pool.close()
                 
-                while len(results) != len(self.procs):
-                    bar.update(len(results))
-                    time.sleep(0.05)
+                pool.join()
         
         self.data["procs"] = results
         
