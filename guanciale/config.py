@@ -105,6 +105,7 @@ def populateConfig_radare():
                 print(" >> The folder is not accessible. Retry.")
                 continue
     radare2 = raddir
+
     
 
 def populateConfig_idacmd():

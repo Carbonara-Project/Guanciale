@@ -613,12 +613,12 @@ class BinaryInfo(object):
             if config.usewine:
                 process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             else:
-                process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"')
+                process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
         elif file_ext == '.i64':
             if config.usewine:
                 process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             else:
-                process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"')
+                process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
         else:
             raise RuntimeError('BinaryInfo._fromIDAPro: extension %s is not supported' % file_ext)
         process.wait()
@@ -630,7 +630,7 @@ class BinaryInfo(object):
             idadump.close()
         except IOError:
             raise RuntimeError("BinaryInfo._fromIDAPro: cannot retrieve data from IDA Pro, problably you have another instance of IDA working on the database")
-            
+        
         #clean up
         os.remove(dumpname)
         printout("\r" + GREEN + "[x]" + NC + " Waiting for IDA to parse database (this may take several minutes)...\n")
