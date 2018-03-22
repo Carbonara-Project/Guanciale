@@ -373,10 +373,13 @@ class BinaryInfo(object):
     def processSingle(self, proc_search):
         if self._mode == _MODE_R2:
             processProc = _processR2Procedure
+            imports_dict = self.imports_dict
         elif self._mode == _MODE_IDA:
-            self.processProc = self._processIDAProcedure
+            processProc = _processIDAProcedure
+            imports_dict = None
         elif self._mode == _MODE_IDB:
-            self.processProc = self._processR2Procedure
+            processProc = _processR2Procedure
+            imports_dict = self.imports_dict
         else:
             raise RuntimeError("BinaryInfo.processSingle: mode not valid")
         
@@ -387,7 +390,7 @@ class BinaryInfo(object):
                 printout(RED + "[ ]" + NC + " Processing target procedure")
                 data = {
                     "program": self.md5,
-                    "procedure": self.processProc(proc)
+                    "procedure": processProc(proc, imports_dict, self.arch)
                 }
                 printout("\r" + GREEN + "[x]" + NC + " Processing target procedure\n")
                 return data
