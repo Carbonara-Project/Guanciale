@@ -612,19 +612,24 @@ class BinaryInfo(object):
         if config.usewine:
             idascript.replace(os.path.sep, "\\")
         
-        if file_ext == '.idb':
-            if config.usewine:
-                process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try: #We on IDA
+            import idc
+            idaapi.IDAPython_ExecScript('idascript.py', globals())
+
+        except: #We on carb cli
+            if file_ext == '.idb':
+                if config.usewine:
+                    process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
+            elif file_ext == '.i64':
+                if config.usewine:
+                    process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                else:
+                    process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
             else:
-                process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
-        elif file_ext == '.i64':
-            if config.usewine:
-                process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            else:
-                process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
-        else:
-            raise RuntimeError('BinaryInfo._fromIDAPro: extension %s is not supported' % file_ext)
-        process.wait()
+                raise RuntimeError('BinaryInfo._fromIDAPro: extension %s is not supported' % file_ext)
+            process.wait()
         
         #getting data from idascript via json
         try:

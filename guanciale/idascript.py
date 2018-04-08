@@ -270,7 +270,7 @@ for func in idautils.Functions():
         
         #add to flow_insns if call or jump
         arch = data['info']['arch']
-        mnem = idc.GetMnem(cur_addr) if arch =='metapc' else idc.GetDisasm(cur_addr).split()[0]
+        mnem = idc.GetMnem(cur_addr) if arch == 'metapc' else idc.GetDisasm(cur_addr).split()[0]
         call_check, jump_check, addFlow = checkFlow(arch, mnem)
         addFlow(call_check, jump_check, flow_insns)
 
