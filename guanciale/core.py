@@ -49,6 +49,7 @@ def printout(s):
 _MODE_R2 = 0
 _MODE_IDA = 1
 _MODE_IDB = 2
+_IN_IDA = 3
 
 R2PLUGIN = 0xABADCAFE
 
@@ -360,12 +361,17 @@ class BinaryInfo(object):
         elif engine == "idapro":
             if database == None:
                 raise RuntimeError("BinaryInfo.grabProcedures: using IDA Pro as engine you must specify the database file!")
-            if config.idacmd:
-                self._fromIDAPro(database)
-                self._mode = _MODE_IDA
-            else:
-                self._parseIDB(database)
-                self._mode = _MODE_IDB
+            try: #We on IDA
+                import idc
+                self._grabAsIDAPlugin(database)
+                self.mode = _IN_IDA
+            except: #We on carb cli
+                if config.idacmd:
+                    self._fromIDAPro(database)
+                    self._mode = _MODE_IDA
+                else:
+                    self._parseIDB(database)
+                    self._mode = _MODE_IDB
         else:
             raise RuntimeError("BinaryInfo.grabProcedures: invalid engine %s" % str(engine))
         
@@ -381,8 +387,8 @@ class BinaryInfo(object):
             processProc = _processR2Procedure
             imports_dict = self.imports_dict
         else:
-            raise RuntimeError("BinaryInfo.processSingle: mode not valid")
-        
+            raise RuntimeError("BinaryInfo.processSingle: mode not valid")        
+                
         printout(RED + "[ ]" + NC + " Searching target procedure")
         for proc in self.procs:
             if proc["name"] == proc_search or hex(proc["offset"]) == proc_search or str(proc["offset"]) == proc_search:
@@ -596,9 +602,6 @@ class BinaryInfo(object):
         printout("\r" + GREEN + "[x]" + NC + " Building procedures index\n")
     
     
-
-
-
     def _fromIDAPro(self, filename):
         printout(RED + "[ ]" + NC + " Waiting for IDA to parse database (this may take several minutes)...")
         
@@ -611,25 +614,20 @@ class BinaryInfo(object):
         
         if config.usewine:
             idascript.replace(os.path.sep, "\\")
-        
-        try: #We on IDA
-            import idc
-            idaapi.IDAPython_ExecScript('idascript.py', globals())
 
-        except: #We on carb cli
-            if file_ext == '.idb':
-                if config.usewine:
-                    process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                else:
-                    process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
-            elif file_ext == '.i64':
-                if config.usewine:
-                    process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                else:
-                    process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
+        if file_ext == '.idb':
+            if config.usewine:
+                process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             else:
-                raise RuntimeError('BinaryInfo._fromIDAPro: extension %s is not supported' % file_ext)
-            process.wait()
+                process = subprocess.Popen(config.idacmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
+        elif file_ext == '.i64':
+            if config.usewine:
+                process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            else:
+                process = subprocess.Popen(config.ida64cmd + ' -A -S"' + idascript + dumpname +'" "' + filename + '"', stdin=open(os.devnull))
+        else:
+            raise RuntimeError('BinaryInfo._fromIDAPro: extension %s is not supported' % file_ext)
+        process.wait()
         
         #getting data from idascript via json
         try:
@@ -663,6 +661,28 @@ class BinaryInfo(object):
         
         self.procs = data['procedures']
 
+
+    def _grabAsIDAPlugin(self, filename):
+        idaapi.require("idascript")
+
+        data = idascript.grab(filename)
+        for key in data['info']:
+            self.data['info'][key] = data['info'][key]
+        
+        try:
+            self.arch = matching.archFromIda(self.data["info"]["arch"], self.data["info"]["bits"], self.data["info"]["endian"])
+        except:
+            raise ArchNotSupported("arch %s (%d bits) not supported" % (self.data["info"]["arch"], self.data["info"]["bits"]))
+        self.data["info"]["arch"] = self.arch.name
+        
+        self.data['libs'] = data['libs']
+
+        self.data['imports'] = data['imports']
+
+        self.data["exports"] = data['exports']
+        #printout("\r" + GREEN + "[x]" + NC + " Getting file properties and symbols\n")
+        
+        self.procs = data['procedures']
 
     def _parseIDB(self, filename):
         import logging
@@ -850,4 +870,3 @@ class BinaryInfo(object):
                     printerr(" >> " + RED + "Error" + NC +" on function %s, skipped" % fcn_name)
                 i += 1
             printout("\r" + GREEN + "[x]" + NC + " Getting procedures\n")
-

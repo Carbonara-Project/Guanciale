@@ -172,129 +172,133 @@ def checkFlow(arch, mnem):
     else:
         return False, False, theFlow
 
-#wait for IDA analysys to complete
-idaapi.autoWait()
+def grab():
+    #wait for IDA analysys to complete
+    idaapi.autoWait()
 
-#json to communicate with main process
-dumpname = idc.ARGV[1]
-dump = open(dumpname, 'w')
+    #get info
+    info = idaapi.get_inf_structure()
 
-#get info
-info = idaapi.get_inf_structure()
+    #get arch
+    data['info']['arch'] = info.procName.lower()
 
-#get arch
-data['info']['arch'] = info.procName.lower()
+    #get bits
+    if info.is_64bit():
+        data['info']['bits'] = 64
+    elif info.is_32bit():
+        data['info']['bits'] = 32
+    else:
+        data['info']['bits'] = 16
 
-#get bits
-if info.is_64bit():
-    data['info']['bits'] = 64
-elif info.is_32bit():
-    data['info']['bits'] = 32
-else:
-    data['info']['bits'] = 16
+    #get endian
+    data['info']['endian'] = "little"
+    if info.is_be():
+        data['info']['endian'] = "big"
 
-#get endian
-data['info']['endian'] = "little"
-if info.is_be():
-    data['info']['endian'] = "big"
+    #get program_class
+    data['info']['program_class'] = class_map[info.filetype]
 
-#get program_class
-data['info']['program_class'] = class_map[info.filetype]
+    #get imports and dlls
+    nimps = idaapi.get_import_module_qty()
+    for i in xrange(0, nimps):
+        dllname = idaapi.get_import_module_name(i)
+        if dllname != None:
+            data['libs'].append({"name": dllname})
+        idaapi.enum_import_names(i, imp_cb)
 
-#get imports and dlls
-nimps = idaapi.get_import_module_qty()
-for i in xrange(0, nimps):
-    dllname = idaapi.get_import_module_name(i)
-    if dllname != None:
-        data['libs'].append({"name": dllname})
-    idaapi.enum_import_names(i, imp_cb)
+    #get exports
+    for exp in list(idautils.Entries()):
+        e = {
+            'name': exp[3],
+            'offset': exp[1],
+            'size': 0 #Hardcoded to 0 until we figure out what the 'size' info actually means
+        }
+        data['exports'].append(e)
 
-#get exports
-for exp in list(idautils.Entries()):
-    e = {
-        'name': exp[3],
-        'offset': exp[1],
-        'size': 0 #Hardcoded to 0 until we figure out what the 'size' info actually means
-    }
-    data['exports'].append(e)
+    #iterate through functions
+    for func in idautils.Functions():
+        #if func from library skip
+        flags = idc.GetFunctionFlags(func)
+        if flags & FUNC_LIB or flags & FUNC_THUNK or flags & FUNC_HIDDEN:
+            continue
 
-#iterate through functions
-for func in idautils.Functions():
-    #if func from library skip
-    flags = idc.GetFunctionFlags(func)
-    if flags & FUNC_LIB or flags & FUNC_THUNK or flags & FUNC_HIDDEN:
-        continue
-
-    #get procedure name
-    name = idc.GetFunctionName(func)
-    
-    #get procedure callconv
-    func_info = idc.GetType(func)
-    callconv = getCallConv(func_info)
-    
-    start = idc.GetFunctionAttr(func, FUNCATTR_START)
-    end = idc.GetFunctionAttr(func, FUNCATTR_END)
-    cur_addr = start
-    
-    asm = ''
-    ops = ''
-    insns_list = []
-    flow_insns = []
-
-    while cur_addr <= end:
-        next_instr = idc.NextHead(cur_addr, end)
-
-        #get size instr
-        if next_instr > end:
-            size = end - cur_addr
-        else:
-            size = next_instr - cur_addr
-
-        #get assembly and comments
-        curr_asm = hex(cur_addr).rstrip("L") + "   " + idc.GetDisasm(cur_addr).split(';')[0]
-        try:
-            curr_asm += '   ;' + idc.GetCommentEx(cur_addr, True).replace('\n', ' ')
-        except:
-            pass
-        curr_asm += '\n'
-        asm += curr_asm
-
-        #get first byte of instruction
-        opc = hex(ord(idc.GetManyBytes(cur_addr, 1)))[2:]
-        if len(opc) < 2:
-            opc = '0'+opc
-        ops += opc
-
-        #get instruction bytes
-        insns_list.append((cur_addr, base64.b64encode(idc.GetManyBytes(cur_addr, size))))
+        #get procedure name
+        name = idc.GetFunctionName(func)
         
-        #add to flow_insns if call or jump
-        arch = data['info']['arch']
-        mnem = idc.GetMnem(cur_addr) if arch == 'metapc' else idc.GetDisasm(cur_addr).split()[0]
-        call_check, jump_check, addFlow = checkFlow(arch, mnem)
-        addFlow(call_check, jump_check, flow_insns)
+        #get procedure callconv
+        func_info = idc.GetType(func)
+        callconv = getCallConv(func_info)
+        
+        start = idc.GetFunctionAttr(func, FUNCATTR_START)
+        end = idc.GetFunctionAttr(func, FUNCATTR_END)
+        cur_addr = start
+        
+        asm = ''
+        ops = ''
+        insns_list = []
+        flow_insns = []
 
-        cur_addr = next_instr
+        while cur_addr <= end:
+            next_instr = idc.NextHead(cur_addr, end)
 
-    #get raw data
-    raw_data = idc.GetManyBytes(start, end - start)
+            #get size instr
+            if next_instr > end:
+                size = end - cur_addr
+            else:
+                size = next_instr - cur_addr
 
-    proc_data = {
-        'name': name,
-        'offset': start,
-        'callconv': callconv,
-        'raw_data': base64.b64encode(raw_data),
-        'asm': asm,
-        'flow_insns': flow_insns,
-        'insns_list': insns_list,
-        'ops': ops
-    }
-    data['procedures'].append(proc_data)
-    
-json.dump(data, dump)
+            #get assembly and comments
+            curr_asm = hex(cur_addr).rstrip("L") + "   " + idc.GetDisasm(cur_addr).split(';')[0]
+            try:
+                curr_asm += '   ;' + idc.GetCommentEx(cur_addr, True).replace('\n', ' ')
+            except:
+                pass
+            curr_asm += '\n'
+            asm += curr_asm
 
-dump.close()
+            #get first byte of instruction
+            opc = hex(ord(idc.GetManyBytes(cur_addr, 1)))[2:]
+            if len(opc) < 2:
+                opc = '0'+opc
+            ops += opc
+
+            #get instruction bytes
+            insns_list.append((cur_addr, base64.b64encode(idc.GetManyBytes(cur_addr, size))))
+            
+            #add to flow_insns if call or jump
+            arch = data['info']['arch']
+            mnem = idc.GetMnem(cur_addr) if arch == 'metapc' else idc.GetDisasm(cur_addr).split()[0]
+            call_check, jump_check, addFlow = checkFlow(arch, mnem)
+            addFlow(call_check, jump_check, flow_insns)
+
+            cur_addr = next_instr
+
+        #get raw data
+        raw_data = idc.GetManyBytes(start, end - start)
+
+        proc_data = {
+            'name': name,
+            'offset': start,
+            'callconv': callconv,
+            'raw_data': base64.b64encode(raw_data),
+            'asm': asm,
+            'flow_insns': flow_insns,
+            'insns_list': insns_list,
+            'ops': ops
+        }
+        data['procedures'].append(proc_data)
+        
+        return data
+
+if __name__ == "__main__":
+    #json to communicate with main process
+    dumpname = idc.ARGV[1]
+    dump = open(dumpname, 'w')
+
+    grab()
+
+    json.dump(data, dump)
+    dump.close()
 
 #stop script
 idc.Exit(0)
-
