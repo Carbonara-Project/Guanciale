@@ -68,17 +68,18 @@ class_map = {
 }
 
 data = {
-    'info' : {
-        'program_class': None,
-        'arch': None,
-        'bits': None,
-        'endian': None
-    },
-    'procedures': [],
-    'imports': [],
-    'exports': [],
-    'libs': []
-}
+        'info' : {
+            'program_class': None,
+            'arch': None,
+            'bits': None,
+            'endian': None
+        },
+        'procedures': [],
+        'imports': [],
+        'exports': [],
+        'libs': []
+    }
+
 
 def imp_cb(ea, name, ord): #call-back function required by idaapi.enum_import_names()
     i = {
@@ -112,7 +113,7 @@ def getCallConv(func_info):
     else:
        return ''
 
-def theFlow(call_check, jump_check, flow_insns):
+def theFlow(call_check, jump_check, flow_insns, cur_addr, start, end, size):
     if call_check:
         op = idc.GetOpnd(cur_addr, 0)
         op_type = idc.GetOpType(cur_addr, 0)
@@ -189,7 +190,7 @@ def grab():
         data['info']['bits'] = 32
     else:
         data['info']['bits'] = 16
-
+        
     #get endian
     data['info']['endian'] = "little"
     if info.is_be():
@@ -269,7 +270,7 @@ def grab():
             arch = data['info']['arch']
             mnem = idc.GetMnem(cur_addr) if arch == 'metapc' else idc.GetDisasm(cur_addr).split()[0]
             call_check, jump_check, addFlow = checkFlow(arch, mnem)
-            addFlow(call_check, jump_check, flow_insns)
+            addFlow(call_check, jump_check, flow_insns, cur_addr, start, end, size)
 
             cur_addr = next_instr
 
@@ -287,8 +288,8 @@ def grab():
             'ops': ops
         }
         data['procedures'].append(proc_data)
-        
-        return data
+
+    return data
 
 if __name__ == "__main__":
     #json to communicate with main process
