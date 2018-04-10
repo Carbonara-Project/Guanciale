@@ -359,13 +359,13 @@ class BinaryInfo(object):
                 self._generateR2()
             self._mode = _MODE_R2
         elif engine == "idapro":
-            if database == None:
-                raise RuntimeError("BinaryInfo.grabProcedures: using IDA Pro as engine you must specify the database file!")
             try: #We on IDA
                 import idc
                 self._grabAsIDAPlugin(database)
                 self.mode = _IN_IDA
             except: #We on carb cli
+                if database == None:
+                    raise RuntimeError("BinaryInfo.grabProcedures: using IDA Pro as engine you must specify the database file!")
                 if config.idacmd:
                     self._fromIDAPro(database)
                     self._mode = _MODE_IDA
