@@ -414,7 +414,6 @@ class BinaryInfo(object):
         
         results = []
         
-        
         print(" >> Processing all procedures")
         with status.Status(len(self.procs)) as bar:
             
@@ -433,15 +432,23 @@ class BinaryInfo(object):
                     count += 1
                     bar.update(count)
             else:
-                if workers == None:
-                    pool = mp.Pool(mp.cpu_count())
-                else:
-                    pool = mp.Pool(workers)
-                
-                r = [pool.apply_async(processProc, args=(proc, imports_dict, self.arch), callback=_callback) for proc in self.procs]
-                pool.close()
-                
-                pool.join()
+                try:
+                    if workers == None:
+                        pool = mp.Pool(mp.cpu_count())
+                    else:
+                        pool = mp.Pool(workers)
+                    
+                    r = [pool.apply_async(processProc, args=(proc, imports_dict, self.arch), callback=_callback) for proc in self.procs]
+                    pool.close()
+                    
+                    pool.join()
+                except OSError:
+                    count = 0
+                    for proc in self.procs:
+                        r = processProc(proc, imports_dict, self.arch)
+                        _callback(r)
+                        count += 1
+                        bar.update(count)
         
         self.data["procs"] = results
         
