@@ -284,6 +284,7 @@ for func in idautils.Functions():
         'offset': start,
         'callconv': callconv,
         'raw_data': base64.b64encode(raw_data),
+        'size': len(raw_data),
         'asm': asm,
         'flow_insns': flow_insns,
         'insns_list': insns_list,
